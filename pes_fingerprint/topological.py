@@ -1,8 +1,15 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
+from tqdm.auto import tqdm
 
-def wave_search(potential: np.ndarray, seed: Tuple[int, int, int]) -> np.ndarray:
+def wave_search(
+    potential: np.ndarray,
+    seed: Tuple[int, int, int],
+    minimal_lvl_increase: float = 0.1,
+    progress_bar: bool = True,
+    fill_wavefront_ids_list: Optional[list] = None,
+) -> np.ndarray:
     """
     Function that traverses a potential map on a grid (3d array) and returns an array
     of barriers (value for each grid point, what is the highest barrier to overcome to get
@@ -16,7 +23,7 @@ def wave_search(potential: np.ndarray, seed: Tuple[int, int, int]) -> np.ndarray
 
     # this will be the result map of barriers (shifted by the potential value at seed)
     levels = np.empty(dtype=float, shape=shape)
-    levels[seed] = float(potential[seed])
+    levels[seed] = current_level = float(potential[seed])
 
     # boolean map to track iterative wave propagation
     observed = np.zeros(dtype=bool, shape=shape)
@@ -36,7 +43,13 @@ def wave_search(potential: np.ndarray, seed: Tuple[int, int, int]) -> np.ndarray
     # initialize the border
     border_last = np.stack([np.array([i]) for i in seed], axis=-1).astype("int64")
 
+    if progress_bar:
+        pbar = tqdm(total=observed.size)
+        pbar.update(observed.sum())
     while True:
+        if fill_wavefront_ids_list is not None:
+            fill_wavefront_ids_list.append(border_last)
+
         # make single step
         border_next_with_mapback = (
             border_last[:, None, :, None] + deltas_and_zeros[None, :, :, :]
@@ -54,6 +67,15 @@ def wave_search(potential: np.ndarray, seed: Tuple[int, int, int]) -> np.ndarray
         ]
         if not len(border_next_with_mapback):
             break
+
+        # Now we want to adjust the wave propagation to only happen in the direction of
+        # smallest ascent of the potential
+        values_dest = potential[tuple(border_next_with_mapback[..., 0].T)]
+        if (values_dest > current_level).all():
+            current_level = max(values_dest.min(), current_level + minimal_lvl_increase)
+        ascent_selection = values_dest <= current_level
+        excluded_too_steep = border_next_with_mapback[~ascent_selection]
+        border_next_with_mapback = border_next_with_mapback[ascent_selection]
 
         # So far `border_next_with_mapback` contains all the hops at current steps,
         # but some of them are reduntant (multiple hops to a single position). We need to
@@ -80,6 +102,23 @@ def wave_search(potential: np.ndarray, seed: Tuple[int, int, int]) -> np.ndarray
             potential[ids_dest],
         )
         observed[ids_dest] = True
-        border_last = border_next_with_mapback[..., 0]
 
+        # The `excluded_too_steep` indices are added to retain the parts of the wavefront that haven't fully propagated yet
+        # TODO: move these excluded indices to a stack and only access them when we know their level is reached to avoid
+        #       repeated failed propagation attempts and save CPU time.
+        border_last = np.concatenate(
+            [
+                np.unique(
+                    np.ascontiguousarray(excluded_too_steep[..., 1]).reshape(-1).view(dtype='i8,i8,i8')
+                ).view("int64").reshape(-1, 3),
+                border_next_with_mapback[..., 0],
+            ], axis=0
+        )
+        if progress_bar:
+            pbar.set_description(f"(wavefront size {len(border_last)}; current_level {current_level:.4f})")
+            pbar.update(len(border_next_with_mapback))
+    if progress_bar:
+        pbar.close()
+
+    assert observed.all()
     return levels - levels[seed]

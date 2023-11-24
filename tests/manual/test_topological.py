@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,8 +44,67 @@ def test_1d_data():
         plt.plot(levels_1d, "--", color=mpl_line.get_color(), label=f"levels ({'XYZ'[axis]})")
 
 
+def prepare_2d_spiral(
+    size: Tuple[int, int] = (100, 100),
+) -> np.ndarray:
+    data = np.zeros(shape=size, dtype="float64")
+
+    alpha = 0
+    d_alpha = 2 * np.pi / 40
+    r = 0
+    d_r = 0.005 * min(size)
+    while True:
+        x0 = size[0] / 2 + r * np.sin(alpha)
+        y0 = size[1] / 2 + r * np.cos(alpha)
+        x1 = size[0] / 2 + (r + d_r) * np.sin(alpha + d_alpha)
+        y1 = size[1] / 2 + (r + d_r) * np.cos(alpha + d_alpha)
+
+        for ii in np.linspace(0, 1, int(10 * (1 + 4 * r / min(size))), endpoint=False):
+            x = x0 * (1 - ii) + x1 * ii
+            y = y0 * (1 - ii) + y1 * ii
+            data -= np.fromfunction(
+                lambda ix, iy: np.exp((-(x - ix)**2 - (y - iy)**2) / (min(size) / 30)**2),
+                shape=data.shape,
+            ) * (1 + 0.5 * np.sin(alpha * 10))
+
+        r += d_r
+        alpha += d_alpha
+
+        if r > 0.5 * min(size):
+            break
+
+    return data
+
+
 if __name__ == "__main__":
-    np.random.seed(42)
-    test_1d_data()
-    plt.legend()
+    data = prepare_2d_spiral(size=(100, 100))
+    data_3d = np.tile(data[..., None], (1, 1, 10))
+    print("data prepared")
+
+    wavefront = []
+    levels = wave_search(
+        data_3d,
+        np.unravel_index(data_3d.argmin(), data_3d.shape),
+        minimal_lvl_increase=0.5,
+        fill_wavefront_ids_list=wavefront,
+    )
+    print("levels calculated")
+    # plt.imshow(levels.std(axis=-1))
+    # plt.colorbar()
+    # plt.show()
+    assert np.allclose(levels.std(axis=-1), 0, atol=1e-10)
+
+    plt.subplot(1, 2, 1)
+    plt.imshow(data)
+    plt.colorbar()
+    plt.subplot(1, 2, 2)
+
+    plt.imshow(levels[..., 0])
+    plt.colorbar()
     plt.show()
+
+    print("All done")
+    # np.random.seed(42)
+    # test_1d_data()
+    # plt.legend()
+    # plt.show()
