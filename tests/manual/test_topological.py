@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from pes_fingerprint.topological import wave_search
-from .utils import visualize_wavefront
+from pes_fingerprint.topological.utils import visualize_wavefront
 
 def prepare_1d_data(
     length: int = 1000,
