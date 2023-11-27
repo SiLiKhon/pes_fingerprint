@@ -192,18 +192,8 @@ def test_3d_data():
         fill_wavefront_ids_list=wavefront,
     )
 
-    def _make_dense_frame(ids):
-        result = np.zeros(shape=shape, dtype=bool)
-        result[tuple(ids.T)] = True
-        return result
+    visualize_wavefront(wavefront, shape).show()
 
-    wavefront = np.array([_make_dense_frame(ids) for ids in wavefront])
-    wavefront = wavefront.cumsum(axis=0).astype(bool)
-    if len(wavefront) > 200:
-        stepsize = int(np.ceil(len(wavefront) / 200))
-        wavefront = wavefront[::stepsize]
-
-    visualize_wavefront(wavefront).show()
 
 if __name__ == "__main__":
     from argparse import ArgumentParser

@@ -1,8 +1,29 @@
+from typing import List, Tuple
+
 import numpy as np
 from skimage.measure import marching_cubes
 import plotly.graph_objects as go
 
-def visualize_wavefront(wf: np.ndarray) -> go.Figure:
+
+def visualize_wavefront(
+    wf: List[np.ndarray],
+    target_shape: Tuple[int, int, int],
+    max_num_frames: int = 200,
+) -> go.Figure:
+    def _make_dense_frame(ids: np.ndarray) -> np.ndarray:
+        result = np.zeros(shape=target_shape, dtype=bool)
+        result[tuple(ids.T)] = True
+        return result
+
+    wavefront = np.array([_make_dense_frame(ids) for ids in wf])
+    wavefront = wavefront.cumsum(axis=0).astype(bool)
+    if len(wavefront) > max_num_frames:
+        stepsize = int(np.ceil(len(wavefront) / max_num_frames))
+        wavefront = wavefront[::stepsize]
+    return _visualize_wavefront(wavefront)
+
+
+def _visualize_wavefront(wf: np.ndarray) -> go.Figure:
     assert wf.ndim == 4
     assert wf.dtype == "bool"
 
