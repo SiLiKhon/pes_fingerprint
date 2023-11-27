@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from pes_fingerprint.topological import wave_search
+from .utils import visualize_wavefront
 
 def prepare_1d_data(
     length: int = 1000,
@@ -138,10 +139,76 @@ def test_2d_data() -> np.ndarray:
     return wavefront
 
 
+def prepare_3d_spiral(
+    size: Tuple[int, int, int] = (40, 50, 150),
+) -> np.ndarray:
+    data = np.zeros(shape=size, dtype="float64")
+
+    z_id = np.argmax(size)
+    (x_id, y_id) = [i for i in range(3) if i != z_id]
+    rmax = min(size[x_id], size[y_id]) / 2
+
+    alpha = 0
+    d_alpha = 2 * np.pi / 40
+    r = 0
+    d_r = rmax / (4 * np.pi / d_alpha)
+    while True:
+        x0 = size[x_id] / 2 + r * np.sin(alpha)
+        y0 = size[y_id] / 2 + r * np.cos(alpha)
+        x1 = size[x_id] / 2 + (r + d_r) * np.sin(alpha + d_alpha)
+        y1 = size[y_id] / 2 + (r + d_r) * np.cos(alpha + d_alpha)
+
+        for ii in np.linspace(0, 1, int(10 * (1 + 2 * r / rmax)), endpoint=False):
+            x = x0 * (1 - ii) + x1 * ii
+            y = y0 * (1 - ii) + y1 * ii
+            z = size[z_id] * r / rmax
+            data -= np.fromfunction(
+                lambda *ixyz: np.exp(
+                    (
+                        -(x - ixyz[x_id])**2
+                        -(y - ixyz[y_id])**2
+                        -(z - ixyz[z_id])**2
+                    ) / (rmax / 5)**2
+                ),
+                shape=data.shape,
+            ) * (1 + 0.5 * np.sin(alpha * 10))
+
+        r += d_r
+        alpha += d_alpha
+
+        if r > 0.5 * min(size):
+            break
+
+    return data
+
+
+def test_3d_data():
+    shape = (40, 50, 70)
+    data = prepare_3d_spiral(size=shape)
+    wavefront = []
+    levels = wave_search(
+        data,
+        seed=np.unravel_index(data.argmin(), data.shape),
+        fill_wavefront_ids_list=wavefront,
+    )
+
+    def _make_dense_frame(ids):
+        result = np.zeros(shape=shape, dtype=bool)
+        result[tuple(ids.T)] = True
+        return result
+
+    wavefront = np.array([_make_dense_frame(ids) for ids in wavefront])
+    wavefront = wavefront.cumsum(axis=0).astype(bool)
+    if len(wavefront) > 200:
+        stepsize = int(np.ceil(len(wavefront) / 200))
+        wavefront = wavefront[::stepsize]
+
+    visualize_wavefront(wavefront).show()
+
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument("tests", type=str, choices=["all", "1d", "2d"])
+    parser.add_argument("tests", type=str, choices=["all", "1d", "2d", "3d"])
     tests_to_do = parser.parse_args().tests
 
     if tests_to_do in ["1d", "all"]:
@@ -161,3 +228,6 @@ if __name__ == "__main__":
             return [img]
         anim = FuncAnimation(fig, _animate_func, frames=len(wf), interval=25)
         plt.show()
+
+    if tests_to_do in ["3d", "all"]:
+        test_3d_data()
