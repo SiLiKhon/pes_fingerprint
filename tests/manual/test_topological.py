@@ -2,6 +2,7 @@ from typing import Literal, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 from pes_fingerprint.topological import wave_search
 
@@ -21,6 +22,7 @@ def prepare_1d_data(
     tiles[length_axis] = 1
 
     return np.tile(yy, tiles)
+
 
 def test_1d_data():
     for axis in range(3):
@@ -76,35 +78,86 @@ def prepare_2d_spiral(
     return data
 
 
-if __name__ == "__main__":
-    data = prepare_2d_spiral(size=(100, 100))
-    data_3d = np.tile(data[..., None], (1, 1, 10))
-    print("data prepared")
+def prepare_2d_data(
+    size_2d: Tuple[int, int] = (50, 80),
+    depth: int = 7,
+    depth_axis: Literal[0, 1, 2] = 0,
+) -> np.ndarray:
+    spiral_2d = prepare_2d_spiral(size_2d)
+    indexer = [slice(None)] * 2
+    repeats = [1, 1]
+    indexer.insert(depth_axis, None)
+    repeats.insert(depth_axis, depth)
+    return np.tile(spiral_2d[tuple(indexer)], repeats)
+
+
+def test_2d_data() -> np.ndarray:
+    levels = {}
+    data = {}
+    shape_v = (50, 80)
+    shape_h = shape_v[::-1]
+    depth = 7
 
     wavefront = []
-    levels = wave_search(
-        data_3d,
-        np.unravel_index(data_3d.argmin(), data_3d.shape),
-        minimal_lvl_increase=0.5,
-        fill_wavefront_ids_list=wavefront,
+    for size_2d in [shape_v, shape_h]:
+        levels[size_2d] = {}
+        data[size_2d] = {}
+        for axis in range(3):
+            data[size_2d][axis] = prepare_2d_data(size_2d=size_2d, depth_axis=axis, depth=depth)
+            args = {"fill_wavefront_ids_list": wavefront} if (size_2d == shape_h and axis == 0) else {}
+            levels[size_2d][axis] = wave_search(
+                potential=data[size_2d][axis],
+                seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
+                **args,
+            )
+            assert np.allclose(levels[size_2d][axis].std(axis=axis), 0, atol=1e-10)
+            idx = [slice(None)] * 2; idx.insert(axis, 3)
+            levels[size_2d][axis] = levels[size_2d][axis][tuple(idx)]
+
+        assert np.allclose(levels[size_2d][0], levels[size_2d][1], atol=1e-10)
+        assert np.allclose(levels[size_2d][1], levels[size_2d][2], atol=1e-10)
+
+    assert np.allclose(
+        levels[shape_v][0][:, 15: 65],
+        levels[shape_h][0][15: 65, :]
     )
-    print("levels calculated")
-    # plt.imshow(levels.std(axis=-1))
-    # plt.colorbar()
-    # plt.show()
-    assert np.allclose(levels.std(axis=-1), 0, atol=1e-10)
 
     plt.subplot(1, 2, 1)
-    plt.imshow(data)
+    plt.imshow(data[shape_h][0][0])
     plt.colorbar()
     plt.subplot(1, 2, 2)
-
-    plt.imshow(levels[..., 0])
+    plt.imshow(levels[shape_h][0])
     plt.colorbar()
-    plt.show()
 
-    print("All done")
-    # np.random.seed(42)
-    # test_1d_data()
-    # plt.legend()
-    # plt.show()
+    def _make_dense_frame(ids):
+        result = np.zeros(shape=(depth,) + shape_h, dtype=bool)
+        result[tuple(ids.T)] = True
+        return result
+
+    wavefront = np.array([_make_dense_frame(ids) for ids in wavefront])
+    return wavefront
+
+
+if __name__ == "__main__":
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument("tests", type=str, choices=["all", "1d", "2d"])
+    tests_to_do = parser.parse_args().tests
+
+    if tests_to_do in ["1d", "all"]:
+        np.random.seed(42)
+        test_1d_data()
+        plt.legend()
+        plt.show()
+
+    if tests_to_do in ["2d", "all"]:
+        wf = test_2d_data()[:, 0]
+        plt.show()
+
+        fig = plt.figure()
+        img = plt.imshow(wf[0])
+        def _animate_func(i):
+            img.set_array(wf[i])
+            return [img]
+        anim = FuncAnimation(fig, _animate_func, frames=len(wf), interval=25)
+        plt.show()
