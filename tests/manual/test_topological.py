@@ -4,8 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from pes_fingerprint.topological import wave_search
-from pes_fingerprint.topological.utils import visualize_wavefront
+from pes_fingerprint.topological import wave_search, utils
 
 def prepare_1d_data(
     length: int = 1000,
@@ -192,7 +191,7 @@ def test_3d_data():
         fill_wavefront_ids_list=wavefront,
     )
 
-    visualize_wavefront(wavefront, shape).show()
+    utils.visualize_wavefront(wavefront, shape).show()
 
 
 if __name__ == "__main__":
