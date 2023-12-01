@@ -20,6 +20,8 @@ def visualize_wavefront(
     if len(wavefront) > max_num_frames:
         stepsize = int(np.ceil(len(wavefront) / max_num_frames))
         wavefront = wavefront[::stepsize]
+    if wavefront[-1].all():
+        wavefront = wavefront[:-1]
     return _visualize_wavefront(wavefront)
 
 
