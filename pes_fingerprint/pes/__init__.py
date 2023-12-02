@@ -76,8 +76,8 @@ class PESManager:
                     (
                         self.atoms[
                             [i for i in range(len(self.atoms)) if i != i_mob]
-                        ].repeat((2, 2, 2)).positions[:, None, None, None, :]
-                        - grid[None]
+                        ].repeat((3, 3, 3)).positions[:, None, None, None, :]
+                        - (grid + self.atoms.cell.array.sum(axis=0))[None]
                     )**2
                 ).sum(axis=-1)
             ).min(axis=0) >= cutoff
