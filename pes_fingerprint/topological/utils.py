@@ -38,7 +38,8 @@ def _visualize_wavefront(
     fig_data = []
     global_data = []
 
-    ax_limits = wf.shape[1:]
+    ax_limits_high = np.array(wf.shape[1:], dtype=float)
+    ax_limits_low = np.zeros(shape=3, dtype=float)
     if unit_cell is not None:
         assert unit_cell.shape == (3, 3)
         points = np.array([
@@ -53,7 +54,8 @@ def _visualize_wavefront(
                 marker=dict(size=0.01, opacity=0.01),
             )
         )
-        ax_limits = points.max(axis=0)
+        ax_limits_high = points.max(axis=0)
+        ax_limits_low = points.min(axis=0)
 
     for frame in wf:
         verts, faces, _, _ = marching_cubes(frame, level=0.5, allow_degenerate=False)
@@ -115,16 +117,22 @@ def _visualize_wavefront(
                 }
             ],
         scene=dict(
-            xaxis=dict(nticks=10, range=(0, ax_limits[0])),
-            yaxis=dict(nticks=10, range=(0, ax_limits[1])),
-            zaxis=dict(nticks=10, range=(0, ax_limits[2])),
+            xaxis=dict(nticks=10, range=(ax_limits_low[0], ax_limits_high[0])),
+            yaxis=dict(nticks=10, range=(ax_limits_low[1], ax_limits_high[1])),
+            zaxis=dict(nticks=10, range=(ax_limits_low[2], ax_limits_high[2])),
             aspectmode='manual',
             aspectratio=dict(
-                x=ax_limits[0],
-                y=ax_limits[1],
-                z=ax_limits[2],
+                x=(ax_limits_high - ax_limits_low)[0],
+                y=(ax_limits_high - ax_limits_low)[1],
+                z=(ax_limits_high - ax_limits_low)[2],
             ),
         ),
-        scene_camera=dict(eye=dict(x=ax_limits[0] * 2, y=ax_limits[1] * 2, z=ax_limits[2] * 2)),
+        scene_camera=dict(
+            eye=dict(
+                x=ax_limits_high[0] * 1.5,
+                y=ax_limits_high[1] * 1.5,
+                z=ax_limits_high[2] * 1.2
+            ),
+        ),
     )
     return fig
