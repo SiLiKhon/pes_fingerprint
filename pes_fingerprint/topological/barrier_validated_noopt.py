@@ -42,7 +42,6 @@ def wave_search(
 
     # initialize the border
     border_last = np.stack([np.array([i]) for i in seed], axis=-1).astype("int64")
-    border_last_min_level = np.array([-np.inf], dtype=float)
 
     if progress_bar:
         pbar = tqdm(total=observed.size)
@@ -51,13 +50,9 @@ def wave_search(
         if fill_wavefront_ids_list is not None:
             fill_wavefront_ids_list.append(border_last)
 
-        if (border_last_min_level > current_level).all():
-            current_level = max(border_last_min_level.min(), current_level + minimal_lvl_increase)
-        border_last_selection = border_last_min_level <= current_level
-
         # make single step
         border_next_with_mapback = (
-            border_last[border_last_selection, None, :, None] + deltas_and_zeros[None, :, :, :]
+            border_last[:, None, :, None] + deltas_and_zeros[None, :, :, :]
         ).reshape(-1, 3, 2)
 
         # remove out of bounds hops
@@ -80,7 +75,6 @@ def wave_search(
             current_level = max(values_dest.min(), current_level + minimal_lvl_increase)
         ascent_selection = values_dest <= current_level
         excluded_too_steep = border_next_with_mapback[~ascent_selection]
-        excluded_too_steep_values = values_dest[~ascent_selection]
         border_next_with_mapback = border_next_with_mapback[ascent_selection]
 
         # So far `border_next_with_mapback` contains all the hops at current steps,
@@ -112,33 +106,13 @@ def wave_search(
         # The `excluded_too_steep` indices are added to retain the parts of the wavefront that haven't fully propagated yet
         # TODO: move these excluded indices to a stack and only access them when we know their level is reached to avoid
         #       repeated failed propagation attempts and save CPU time.
-        if len(excluded_too_steep):
-            excl_src_tags = np.ascontiguousarray(excluded_too_steep[..., 1]).reshape(-1).view(dtype='i8,i8,i8')
-            assert excl_src_tags.shape == excluded_too_steep.shape[:1]
-            sort_ids = excl_src_tags.argsort()
-            excl_src_tags = excl_src_tags[sort_ids]
-            excluded_too_steep = excluded_too_steep[sort_ids]
-            excluded_too_steep_values = excluded_too_steep_values[sort_ids]
-            (_, group_ids) = np.unique(excl_src_tags, return_index=True)
-            groups = np.split(excluded_too_steep, group_ids[1:], axis=0)
-            groups_vals = np.split(excluded_too_steep_values, group_ids[1:], axis=0)
-            excl_ids, excl_vals = [], []
-            for g, gvals in zip(groups, groups_vals):
-                imin = gvals.argmin()
-                excl_ids.append(g[imin])
-                excl_vals.append(gvals[imin])
-            excl_ids = np.array(excl_ids)
-            excl_vals = np.array(excl_vals)
-        else:
-            excl_ids = np.array([], dtype="int64").reshape(0, 3, 2)
-            excl_vals = np.array([], dtype=float)
-        border_next_vals = np.ones(dtype=float, shape=len(border_next_with_mapback)) * (-np.inf)
-
         border_last = np.concatenate(
-            [border_last[~border_last_selection], excl_ids[..., 1], border_next_with_mapback[..., 0]], axis=0
-        )
-        border_last_min_level = np.concatenate(
-            [border_last_min_level[~border_last_selection], excl_vals, border_next_vals], axis=0
+            [
+                np.unique(
+                    np.ascontiguousarray(excluded_too_steep[..., 1]).reshape(-1).view(dtype='i8,i8,i8')
+                ).view("int64").reshape(-1, 3),
+                border_next_with_mapback[..., 0],
+            ], axis=0
         )
         if progress_bar:
             pbar.set_description(f"(wavefront size {len(border_last)}; current_level {current_level:.4f})")
