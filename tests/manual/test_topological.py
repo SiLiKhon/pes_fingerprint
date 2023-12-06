@@ -1,10 +1,11 @@
-from typing import Literal, Tuple
+from typing import Literal, Tuple, List
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from pes_fingerprint.topological import wave_search, utils
+from pes_fingerprint.topological.barrier_validated_noopt import wave_search as wave_search_noopt
 
 def prepare_1d_data(
     length: int = 1000,
@@ -32,6 +33,10 @@ def test_1d_data():
         assert np.allclose(potential.std(axis=excl_axes), 0, atol=1e-10)
 
         levels = wave_search(potential=potential, seed=np.unravel_index(potential.argmin(), potential.shape))
+        levels_noopt = wave_search_noopt(
+            potential=potential, seed=np.unravel_index(potential.argmin(), potential.shape)
+        )
+        assert np.allclose(levels, levels_noopt)
         assert np.allclose(levels.std(axis=excl_axes), 0, atol=1e-10)
 
         selection_1d = [0] * 3
@@ -108,10 +113,93 @@ def test_2d_data() -> np.ndarray:
             levels[size_2d][axis] = wave_search(
                 potential=data[size_2d][axis],
                 seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
+                # minimal_lvl_increase=0.0,
                 **args,
             )
+            if args:
+                args["fill_wavefront_ids_list"] = []
+            lvls_noopt = wave_search_noopt(
+                potential=data[size_2d][axis],
+                seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
+                minimal_lvl_increase=0.0,
+                **args,
+            )
+            assert np.allclose(levels[size_2d][axis], lvls_noopt)
+            # ### DEBUG
+            # def _plot_frames(frames):
+            #     data = np.zeros(shape=size_2d, dtype=float) * np.nan
+            #     assert len(frames) == 2
+            #     union = frames[0].union(frames[1])
+            #     print(_get_pot_at_frame(union))
+            #     for i, f in zip([-1, 1], frames):
+            #         for ids in f:
+            #             assert ids[0] == 0
+            #             if np.isnan(data[ids[1], ids[2]]):
+            #                 data[ids[1], ids[2]] = 0
+            #             data[ids[1], ids[2]] += i
+            #         plt.imshow(data, vmin=-1, vmax=1)
+            #     plt.show()
+
+            # def _get_pot_at_frame(frame):
+            #     result = np.zeros_like(potential) * np.nan
+            #     ids = tuple(np.array([i for i in frame])[:, 1:].T)
+            #     result[ids] = potential[ids]
+            #     result = result[ids[0].min(): ids[0].max() + 1, ids[1].min(): ids[1].max() + 1]
+            #     return result
+
+            # def _plot_frames_i(i, j=None):
+            #     _plot_frames([wf[i], wf_noopt[i if j is None else j]])
+
+            # def _convert(wf):
+            #     frames = []
+            #     for frame in wf:
+            #         tokens = np.ascontiguousarray(frame).reshape(-1).view("i8,i8,i8")
+            #         assert len(tokens) == len(frame)
+            #         frames.append(set(tokens.tolist()))
+            #     return frames
+
+            # wf = wavefront
+            # wf_noopt = args["fill_wavefront_ids_list"]
+            # wf = _convert(wf)
+            # wf_noopt = _convert(wf_noopt)
+            # (potential,) = data[size_2d][axis]
+            # potential = potential - potential.min()
+            # ### ENDDEBUG
+            if args:
+                def _compare_wavefronts(
+                    wf1: List[np.ndarray],
+                    wf2: List[np.ndarray],
+                ):
+                    # print(len(wf1))
+                    # print(len(wf2))
+                    converted = []
+                    for frame in wf1 + wf2:
+                        assert frame.ndim == 2
+                        assert frame.shape[1] == 3
+                        tokens = np.ascontiguousarray(frame).reshape(-1).view("i8,i8,i8")
+                        assert len(tokens) == len(frame)
+                        converted.append(set(tokens.tolist()))
+                    wf1 = converted[:len(wf1)]
+                    wf2 = converted[len(wf1):]
+
+                    frame1 = wf1.pop(0)
+                    frame2 = wf2.pop(0)
+                    while (len(wf1) > 0) and (len(wf2) > 0):
+                        diff12 = frame1.difference(frame2)
+                        diff21 = frame2.difference(frame1)
+                        assert len(diff12) == 0 or len(diff21) == 0
+                        frame1 = diff12
+                        frame2 = diff21
+                        if not frame1: frame1 = wf1.pop(0)
+                        if not frame2: frame2 = wf2.pop(0)
+                    assert len(wf1) == 0 and len(wf2) == 0
+
+                _compare_wavefronts(
+                    args["fill_wavefront_ids_list"],
+                    wavefront,
+                )
             assert np.allclose(levels[size_2d][axis].std(axis=axis), 0, atol=1e-10)
-            idx = [slice(None)] * 2; idx.insert(axis, 3)
+            idx = [slice(None)] * 2; idx.insert(axis, 0)
             levels[size_2d][axis] = levels[size_2d][axis][tuple(idx)]
 
         assert np.allclose(levels[size_2d][0], levels[size_2d][1], atol=1e-10)

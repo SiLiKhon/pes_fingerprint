@@ -42,14 +42,16 @@ def wave_search(
 
     # initialize the border
     border_last = np.stack([np.array([i]) for i in seed], axis=-1).astype("int64")
+    wf_updated = True
     border_last_min_level = np.array([-np.inf], dtype=float)
 
     if progress_bar:
         pbar = tqdm(total=observed.size)
         pbar.update(observed.sum())
     while True:
-        if fill_wavefront_ids_list is not None:
+        if fill_wavefront_ids_list is not None and wf_updated:
             fill_wavefront_ids_list.append(border_last)
+            wf_updated = False
 
         if (border_last_min_level > current_level).all():
             current_level = max(border_last_min_level.min(), current_level + minimal_lvl_increase)
@@ -71,13 +73,26 @@ def wave_search(
             ~observed[tuple(border_next_with_mapback[..., 0].T)]
         ]
         if not len(border_next_with_mapback):
+            if not border_last_selection.all():
+                current_level = max(
+                    border_last_min_level[~border_last_selection].min(),
+                    current_level + minimal_lvl_increase,
+                )
+                continue
             break
 
         # Now we want to adjust the wave propagation to only happen in the direction of
         # smallest ascent of the potential
         values_dest = potential[tuple(border_next_with_mapback[..., 0].T)]
         if (values_dest > current_level).all():
-            current_level = max(values_dest.min(), current_level + minimal_lvl_increase)
+            current_level = max(
+                min(
+                    values_dest.min(),
+                    border_last_min_level[~border_last_selection].min() if not border_last_selection.all() else np.inf,
+                ),
+                current_level + minimal_lvl_increase,
+            )
+            continue
         ascent_selection = values_dest <= current_level
         excluded_too_steep = border_next_with_mapback[~ascent_selection]
         excluded_too_steep_values = values_dest[~ascent_selection]
@@ -140,6 +155,7 @@ def wave_search(
         border_last_min_level = np.concatenate(
             [border_last_min_level[~border_last_selection], excl_vals, border_next_vals], axis=0
         )
+        wf_updated = True
         if progress_bar:
             pbar.set_description(f"(wavefront size {len(border_last)}; current_level {current_level:.4f})")
             pbar.update(len(border_next_with_mapback))
