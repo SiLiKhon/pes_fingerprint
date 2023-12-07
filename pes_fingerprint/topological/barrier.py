@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Callable
+from typing import Optional, Tuple, List, Callable, Literal
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -9,6 +9,8 @@ def wave_search(
     minimal_lvl_increase: float = 0.1,
     progress_bar: bool = True,
     fill_wavefront_ids_list: Optional[list] = None,
+    early_stop: Literal["any_face", "faces", "off"] = "off",
+    early_stop_faces: Optional[List[int]] = None,
 ) -> np.ndarray:
     """
     Function that traverses a potential map on a grid (3d array) and returns an array
@@ -20,6 +22,20 @@ def wave_search(
     assert all(i >= 0 for i in seed)
 
     shape = potential.shape
+
+    stop_condition_met = False
+    if early_stop in ("any_face", "faces"):
+        check_stop_condition = True
+        faces_pattern = np.array([True] * 3)
+        if early_stop == "faces":
+            faces_pattern = ~faces_pattern
+            for i in early_stop_faces:
+                faces_pattern[i] = True
+    elif early_stop == "off":
+        assert early_stop_faces is None
+        check_stop_condition = False
+    else:
+        raise NotImplementedError(early_stop)
 
     # this will be the result map of barriers (shifted by the potential value at seed)
     levels = np.empty(dtype=float, shape=shape)
@@ -55,7 +71,7 @@ def wave_search(
 
         # Increase the level if we know for sure that it's required for propagation. Previously unobserved
         # locations are added with min_level=-inf, so this can only happen when no new locations were added.
-        if (border_last_min_level > current_level).all():
+        if (border_last_min_level > current_level).all() and not stop_condition_met:
             current_level = max(border_last_min_level.min(), current_level + minimal_lvl_increase)
 
         # for optimization purposes, only propagate from locations for which current level is sufficient
@@ -79,7 +95,7 @@ def wave_search(
         if not len(border_next_with_mapback):
             # There's nowhere to propagate at this level. If level increase would allow for further propagation,
             # do it and restart current iteration:
-            if not border_last_selection.all():
+            if not border_last_selection.all() and not stop_condition_met:
                 current_level = max(
                     border_last_min_level[~border_last_selection].min(),
                     current_level + minimal_lvl_increase,
@@ -92,14 +108,18 @@ def wave_search(
         # smallest ascent of the potential. In case current level is incufficient, increase it and restart iteration:
         values_dest = potential[_index_with(border_next_with_mapback[..., 0])]
         if (values_dest > current_level).all():
-            current_level = max(
-                min(
-                    values_dest.min(),
-                    border_last_min_level[~border_last_selection].min() if not border_last_selection.all() else np.inf,
-                ),
-                current_level + minimal_lvl_increase,
-            )
-            continue
+            if not stop_condition_met:
+                current_level = max(
+                    min(
+                        values_dest.min(),
+                        border_last_min_level[~border_last_selection].min() if not border_last_selection.all() else np.inf,
+                    ),
+                    current_level + minimal_lvl_increase,
+                )
+                continue
+            else:
+                break
+
         ascent_selection = values_dest <= current_level
         # keep track of the excluded stuff to process later:
         excluded_too_steep = border_next_with_mapback[~ascent_selection]
@@ -150,13 +170,25 @@ def wave_search(
             [border_last_min_level[~border_last_selection], excl_vals, border_next_vals], axis=0
         )
         wf_updated = True
+        if check_stop_condition:
+            if not stop_condition_met:
+                if (
+                    ((border_last == 0) | ((border_last + 1) == shape)) & faces_pattern[None, :]
+                ).any():
+                    print("Early stoping")
+                    stop_condition_met = True
+
         if progress_bar:
             pbar.set_description(f"(wavefront size {len(border_last)}; current_level {current_level:.4f})")
             pbar.update(len(border_next_with_mapback))
     if progress_bar:
         pbar.close()
 
-    assert observed.all()
+    if stop_condition_met:
+        if not observed.all():
+            levels[~observed] = potential.max()
+    else:
+        assert observed.all()
     return levels - levels[seed]
 
 def _group_by_ids_and_aggregate(
