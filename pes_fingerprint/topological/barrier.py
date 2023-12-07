@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -53,8 +53,12 @@ def wave_search(
             fill_wavefront_ids_list.append(border_last)
             wf_updated = False
 
+        # Increase the level if we know for sure that it's required for propagation. Previously unobserved
+        # locations are added with min_level=-inf, so this can only happen when no new locations were added.
         if (border_last_min_level > current_level).all():
             current_level = max(border_last_min_level.min(), current_level + minimal_lvl_increase)
+
+        # for optimization purposes, only propagate from locations for which current level is sufficient
         border_last_selection = border_last_min_level <= current_level
 
         # make single step
@@ -70,20 +74,23 @@ def wave_search(
 
         # remove the nodes we've been in
         border_next_with_mapback = border_next_with_mapback[
-            ~observed[tuple(border_next_with_mapback[..., 0].T)]
+            ~observed[_index_with(border_next_with_mapback[..., 0])]
         ]
         if not len(border_next_with_mapback):
+            # There's nowhere to propagate at this level. If level increase would allow for further propagation,
+            # do it and restart current iteration:
             if not border_last_selection.all():
                 current_level = max(
                     border_last_min_level[~border_last_selection].min(),
                     current_level + minimal_lvl_increase,
                 )
                 continue
+            # otherwise, we are done:
             break
 
         # Now we want to adjust the wave propagation to only happen in the direction of
-        # smallest ascent of the potential
-        values_dest = potential[tuple(border_next_with_mapback[..., 0].T)]
+        # smallest ascent of the potential. In case current level is incufficient, increase it and restart iteration:
+        values_dest = potential[_index_with(border_next_with_mapback[..., 0])]
         if (values_dest > current_level).all():
             current_level = max(
                 min(
@@ -94,61 +101,52 @@ def wave_search(
             )
             continue
         ascent_selection = values_dest <= current_level
+        # keep track of the excluded stuff to process later:
         excluded_too_steep = border_next_with_mapback[~ascent_selection]
         excluded_too_steep_values = values_dest[~ascent_selection]
+        # and only process the remaining part now:
         border_next_with_mapback = border_next_with_mapback[ascent_selection]
 
         # So far `border_next_with_mapback` contains all the hops at current steps,
         # but some of them are reduntant (multiple hops to a single position). We need to
         # group the hops by destination and only select the ones comming from smallest observed level.
-        border_next = np.ascontiguousarray(border_next_with_mapback[..., 0])
-        assert border_next.dtype == np.int64
-        destination_tags = border_next.reshape(-1).view(dtype='i8,i8,i8')
-        assert destination_tags.shape == border_next.shape[:1]
-
-        sort_ids = destination_tags.argsort()
-        destination_tags = destination_tags[sort_ids]
-        border_next_with_mapback = border_next_with_mapback[sort_ids]
-
-        # Grouping trick borrowed from https://stackoverflow.com/a/43094244/3801744
-        (_, group_ids) = np.unique(destination_tags, return_index=True)
-        groups = np.split(border_next_with_mapback, group_ids[1:], axis=0)
-        border_next_with_mapback = np.array([g[levels[tuple(g[..., 1].T)].argmin()] for g in groups])
+        group_ids = _group_by_ids(border_next_with_mapback[..., 0])
+        border_next_with_mapback = np.array([
+            border_next_with_mapback[g_ids[levels[_index_with(border_next_with_mapback[g_ids, ..., 1])].argmin()]]
+            for g_ids in group_ids
+        ])
 
         # Now we update the levels by max(potential here, smallest neighbor level)
-        ids_src = tuple(border_next_with_mapback[..., 1].T)
-        ids_dest = tuple(border_next_with_mapback[..., 0].T)
+        ids_src = _index_with(border_next_with_mapback[..., 1])
+        ids_dest = _index_with(border_next_with_mapback[..., 0])
         levels[ids_dest] = np.maximum(
             levels[ids_src],
             potential[ids_dest],
         )
         observed[ids_dest] = True
 
-        # The `excluded_too_steep` indices are added to retain the parts of the wavefront that haven't fully propagated yet
-        # TODO: move these excluded indices to a stack and only access them when we know their level is reached to avoid
-        #       repeated failed propagation attempts and save CPU time.
+        # The `excluded_too_steep` source ids will be put in `border_last` to retain the parts of the
+        # wavefront that haven't fully propagated yet. For optimization purposes, we keep track of smallest
+        # level value needed to step out of a given source location.
         if len(excluded_too_steep):
-            excl_src_tags = np.ascontiguousarray(excluded_too_steep[..., 1]).reshape(-1).view(dtype='i8,i8,i8')
-            assert excl_src_tags.shape == excluded_too_steep.shape[:1]
-            sort_ids = excl_src_tags.argsort()
-            excl_src_tags = excl_src_tags[sort_ids]
-            excluded_too_steep = excluded_too_steep[sort_ids]
-            excluded_too_steep_values = excluded_too_steep_values[sort_ids]
-            (_, group_ids) = np.unique(excl_src_tags, return_index=True)
-            groups = np.split(excluded_too_steep, group_ids[1:], axis=0)
-            groups_vals = np.split(excluded_too_steep_values, group_ids[1:], axis=0)
-            excl_ids, excl_vals = [], []
-            for g, gvals in zip(groups, groups_vals):
+            group_ids = _group_by_ids(excluded_too_steep[..., 1])
+            groups, groups_vals = zip(*[
+                (excluded_too_steep[g_ids], excluded_too_steep_values[g_ids])
+                for g_ids in group_ids
+            ])
+            excl_ids = np.empty(shape=(len(groups), 3, 2), dtype="int64")
+            excl_vals = np.empty(shape=len(groups), dtype=float)
+            for i, (g, gvals) in enumerate(zip(groups, groups_vals)):
                 imin = gvals.argmin()
-                excl_ids.append(g[imin])
-                excl_vals.append(gvals[imin])
-            excl_ids = np.array(excl_ids)
-            excl_vals = np.array(excl_vals)
+                excl_ids[i] = g[imin]
+                excl_vals[i] = gvals[imin]
         else:
             excl_ids = np.array([], dtype="int64").reshape(0, 3, 2)
             excl_vals = np.array([], dtype=float)
+
         border_next_vals = np.ones(dtype=float, shape=len(border_next_with_mapback)) * (-np.inf)
 
+        # update border_last and the corresponding minimal level values
         border_last = np.concatenate(
             [border_last[~border_last_selection], excl_ids[..., 1], border_next_with_mapback[..., 0]], axis=0
         )
@@ -164,3 +162,16 @@ def wave_search(
 
     assert observed.all()
     return levels - levels[seed]
+
+def _group_by_ids(ids: np.ndarray) -> List[np.ndarray]:
+    tags = np.ascontiguousarray(ids).reshape(-1).view(dtype='i8,i8,i8')
+    assert len(ids) == len(tags)
+
+    # Grouping trick borrowed from https://stackoverflow.com/a/43094244/3801744
+    sort_ids = np.argsort(tags)
+    tags = tags[sort_ids]
+    (_, group_ids) = np.unique(tags, return_index=True)
+    return np.split(sort_ids, group_ids[1:], axis=0)
+
+def _index_with(ids: np.ndarray) -> Tuple[np.ndarray]:
+    return tuple(ids.T)
