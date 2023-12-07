@@ -5,12 +5,28 @@ from skimage.measure import marching_cubes
 import plotly.graph_objects as go
 
 
+def simplify_mesh(
+    verts: np.ndarray, faces: np.ndarray, max_error: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    import meshlib.mrmeshnumpy as mrnp
+    import meshlib.mrmeshpy as mr
+    mesh = mrnp.meshFromFacesVerts(faces, verts)
+    settings = mr.DecimateSettings()
+    settings.maxError = max_error
+    mr.decimateMesh(mesh, settings)
+    return (
+        mrnp.getNumpyVerts(mesh),
+        mrnp.getNumpyFaces(mesh.topology),
+    )
+
+
 def visualize_wavefront(
     wf: List[np.ndarray],
     target_shape: Tuple[int, int, int],
     max_num_frames: int = 200,
     unit_cell: Optional[np.ndarray] = None,
     energy_levels: Optional[np.ndarray] = None,
+    mesh_simplification_error: Optional[float] = None,
 ) -> go.Figure:
     def _make_dense_frame(ids: np.ndarray) -> np.ndarray:
         result = np.zeros(shape=target_shape, dtype=bool)
@@ -24,13 +40,19 @@ def visualize_wavefront(
         wavefront = wavefront[::stepsize]
     if wavefront[-1].all():
         wavefront = wavefront[:-1]
-    return _visualize_wavefront(wavefront, unit_cell=unit_cell, energy_levels=energy_levels)
+    return _visualize_wavefront(
+        wavefront,
+        unit_cell=unit_cell,
+        energy_levels=energy_levels,
+        mesh_simplification_error=mesh_simplification_error,
+    )
 
 
 def _visualize_wavefront(
     wf: np.ndarray,
     unit_cell: Optional[np.ndarray],
     energy_levels: Optional[np.ndarray],
+    mesh_simplification_error: Optional[float],
 ) -> go.Figure:
     assert wf.ndim == 4
     assert wf.dtype == "bool"
@@ -59,8 +81,13 @@ def _visualize_wavefront(
 
     for frame in wf:
         verts, faces, _, _ = marching_cubes(frame, level=0.5, allow_degenerate=False)
+        if mesh_simplification_error is not None:
+            verts, faces = simplify_mesh(verts, faces, max_error=mesh_simplification_error)
+        additional_args = {}
         if energy_levels is not None:
             intensity=energy_levels[tuple(np.floor(verts).astype(int).T)]
+            additional_args["cmin"] = energy_levels.min()
+            additional_args["cmax"] = energy_levels.max()
         else:
             intensity=np.linspace(0, 1, len(faces))
         if unit_cell is not None:
@@ -76,6 +103,7 @@ def _visualize_wavefront(
                 colorscale=[[0, 'gold'], [0.5, 'mediumturquoise'], [1, 'magenta']],
                 intensity=intensity,
                 intensitymode='cell' if energy_levels is None else 'vertex',
+                **additional_args,
             ),
         )
 
