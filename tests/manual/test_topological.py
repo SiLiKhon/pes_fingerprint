@@ -1,10 +1,27 @@
-from typing import Literal, Tuple
+from typing import Literal, Tuple, List
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from pes_fingerprint.topological import wave_search, utils
+from pes_fingerprint.topological.barrier_validated_noopt import wave_search as wave_search_noopt
+
+
+def _compare_wavefronts(
+    wf1: List[np.ndarray],
+    wf2: List[np.ndarray],
+):
+    assert len(wf1) == len(wf2)
+    def _make_tokens(frame):
+        tokens = np.ascontiguousarray(frame).reshape(-1).view("i8,i8,i8").tolist()
+        assert len(tokens) == len(frame)
+        return set(tokens)
+
+    for f1, f2 in zip(wf1, wf2):
+        assert _make_tokens(f1) == _make_tokens(f2)
+    print("Wavefronts identical")
+
 
 def prepare_1d_data(
     length: int = 1000,
@@ -31,7 +48,20 @@ def test_1d_data():
         potential = prepare_1d_data(length_axis=axis)
         assert np.allclose(potential.std(axis=excl_axes), 0, atol=1e-10)
 
-        levels = wave_search(potential=potential, seed=np.unravel_index(potential.argmin(), potential.shape))
+        tmp_wf = []
+        levels = wave_search(
+            potential=potential,
+            seed=np.unravel_index(potential.argmin(),potential.shape),
+            fill_wavefront_ids_list=tmp_wf,
+        )
+        tmp_wf_noopt = []
+        levels_noopt = wave_search_noopt(
+            potential=potential,
+            seed=np.unravel_index(potential.argmin(), potential.shape),
+            fill_wavefront_ids_list=tmp_wf_noopt,
+        )
+        assert np.allclose(levels, levels_noopt)
+        _compare_wavefronts(tmp_wf, tmp_wf_noopt)
         assert np.allclose(levels.std(axis=excl_axes), 0, atol=1e-10)
 
         selection_1d = [0] * 3
@@ -104,14 +134,25 @@ def test_2d_data() -> np.ndarray:
         data[size_2d] = {}
         for axis in range(3):
             data[size_2d][axis] = prepare_2d_data(size_2d=size_2d, depth_axis=axis, depth=depth)
-            args = {"fill_wavefront_ids_list": wavefront} if (size_2d == shape_h and axis == 0) else {}
+            tmp_wf = []
             levels[size_2d][axis] = wave_search(
                 potential=data[size_2d][axis],
                 seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
-                **args,
+                fill_wavefront_ids_list=tmp_wf,
             )
+            if (size_2d == shape_h and axis == 0):
+                wavefront = tmp_wf
+
+            tmp_wf_noopt = []
+            lvls_noopt = wave_search_noopt(
+                potential=data[size_2d][axis],
+                seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
+                fill_wavefront_ids_list=tmp_wf_noopt,
+            )
+            assert np.allclose(levels[size_2d][axis], lvls_noopt)
+            _compare_wavefronts(tmp_wf, tmp_wf_noopt)
             assert np.allclose(levels[size_2d][axis].std(axis=axis), 0, atol=1e-10)
-            idx = [slice(None)] * 2; idx.insert(axis, 3)
+            idx = [slice(None)] * 2; idx.insert(axis, 0)
             levels[size_2d][axis] = levels[size_2d][axis][tuple(idx)]
 
         assert np.allclose(levels[size_2d][0], levels[size_2d][1], atol=1e-10)
@@ -190,6 +231,14 @@ def test_3d_data():
         seed=np.unravel_index(data.argmin(), data.shape),
         fill_wavefront_ids_list=wavefront,
     )
+    wavefront_noopt = []
+    levels_noopt = wave_search_noopt(
+        data,
+        seed=np.unravel_index(data.argmin(), data.shape),
+        fill_wavefront_ids_list=wavefront_noopt,
+    )
+    assert np.allclose(levels, levels_noopt)
+    _compare_wavefronts(wavefront, wavefront_noopt)
 
     utils.visualize_wavefront(wavefront, shape).show()
 
