@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Callable
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -110,11 +110,11 @@ def wave_search(
         # So far `border_next_with_mapback` contains all the hops at current steps,
         # but some of them are reduntant (multiple hops to a single position). We need to
         # group the hops by destination and only select the ones comming from smallest observed level.
-        group_ids = _group_by_ids(border_next_with_mapback[..., 0])
-        border_next_with_mapback = np.array([
-            border_next_with_mapback[g_ids[levels[_index_with(border_next_with_mapback[g_ids, ..., 1])].argmin()]]
-            for g_ids in group_ids
-        ])
+        border_next_with_mapback = np.array(_group_by_ids_and_aggregate(
+            border_next_with_mapback[..., 0],
+            [border_next_with_mapback],
+            lambda group: group[levels[_index_with(group[..., 1])].argmin()]
+        ))
 
         # Now we update the levels by max(potential here, smallest neighbor level)
         ids_src = _index_with(border_next_with_mapback[..., 1])
@@ -129,17 +129,13 @@ def wave_search(
         # wavefront that haven't fully propagated yet. For optimization purposes, we keep track of smallest
         # level value needed to step out of a given source location.
         if len(excluded_too_steep):
-            group_ids = _group_by_ids(excluded_too_steep[..., 1])
-            groups, groups_vals = zip(*[
-                (excluded_too_steep[g_ids], excluded_too_steep_values[g_ids])
-                for g_ids in group_ids
-            ])
-            excl_ids = np.empty(shape=(len(groups), 3, 2), dtype="int64")
-            excl_vals = np.empty(shape=len(groups), dtype=float)
-            for i, (g, gvals) in enumerate(zip(groups, groups_vals)):
-                imin = gvals.argmin()
-                excl_ids[i] = g[imin]
-                excl_vals[i] = gvals[imin]
+            excl_ids, excl_vals = zip(*_group_by_ids_and_aggregate(
+                excluded_too_steep[..., 1],
+                [excluded_too_steep, excluded_too_steep_values],
+                _aggregate_min_paired,
+            ))
+            excl_ids = np.array(excl_ids)
+            excl_vals = np.array(excl_vals)
         else:
             excl_ids = np.array([], dtype="int64").reshape(0, 3, 2)
             excl_vals = np.array([], dtype=float)
@@ -163,15 +159,25 @@ def wave_search(
     assert observed.all()
     return levels - levels[seed]
 
-def _group_by_ids(ids: np.ndarray) -> List[np.ndarray]:
+def _group_by_ids_and_aggregate(
+    ids: np.ndarray,
+    arrays: List[np.ndarray],
+    aggregation_func: Callable,
+) -> List:
     tags = np.ascontiguousarray(ids).reshape(-1).view(dtype='i8,i8,i8')
     assert len(ids) == len(tags)
 
     # Grouping trick borrowed from https://stackoverflow.com/a/43094244/3801744
     sort_ids = np.argsort(tags)
     tags = tags[sort_ids]
+    sorted_arrays = [arr[sort_ids] for arr in arrays]
     (_, group_ids) = np.unique(tags, return_index=True)
-    return np.split(sort_ids, group_ids[1:], axis=0)
+    array_groups = zip(*[np.split(arr, group_ids[1:], axis=0) for arr in sorted_arrays])
+    return [aggregation_func(*g) for g in array_groups]
+
+def _aggregate_min_paired(arr1, arr2_argmin_of):
+    imin = arr2_argmin_of.argmin()
+    return arr1[imin], arr2_argmin_of[imin]
 
 def _index_with(ids: np.ndarray) -> Tuple[np.ndarray]:
     return tuple(ids.T)
