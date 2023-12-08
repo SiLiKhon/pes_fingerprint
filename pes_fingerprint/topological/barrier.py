@@ -175,7 +175,7 @@ def wave_search(
                 if (
                     ((border_last == 0) | ((border_last + 1) == shape)) & faces_pattern[None, :]
                 ).any():
-                    print("Early stoping")
+                    print("Early stopping")
                     stop_condition_met = True
 
         if progress_bar:
