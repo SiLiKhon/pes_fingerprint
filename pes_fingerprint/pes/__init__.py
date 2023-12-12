@@ -7,6 +7,9 @@ from ase.calculators.calculator import Calculator
 
 
 class PESManager:
+    energy_validation_threshold: float = 0.2
+    assert_validation: bool = True
+
     def __init__(
         self,
         source_atoms: Atoms, *,
@@ -94,6 +97,7 @@ class PESManager:
                 structs[-1].append(self.atoms.copy())
                 structs[-1][-1].positions[i_mob] = pos
 
+        (self.base_energy,) = calculator([self.atoms.copy()])
         pes = []
         for structs_subset, mask in zip(structs, grid_valid):
             energies = np.empty(dtype=float, shape=mask.shape)
@@ -101,4 +105,27 @@ class PESManager:
             fill_value = energies[mask].max()
             energies[~mask] = fill_value
             pes.append(energies)
+        self.pes = [pes_i.copy() for pes_i in pes]
+        failed_checks = []
+        for pes_i, i_mob in zip(self.pes, self.soi_ids):
+            if pes_i.min() + self.energy_validation_threshold < self.base_energy:
+                failed_checks.append(
+                    (pes_i.min(), i_mob)
+                )
+        if len(failed_checks):
+            msg = (
+                f"Energy checks failed (base structure energy = {self.base_energy:.3f} eV, "
+                f"fluctuations up to {self.energy_validation_threshold:.3f} eV allowed) for the following species:\n"
+                + "\n".join(
+                    f"  Ion #{i_mob}: min energy = {emin:.3f} eV ({self.base_energy - emin:.3f} eV below base)"
+                    for emin, i_mob in failed_checks
+                )
+            )
+            if self.assert_validation:
+                assert False, msg
+            else:
+                print(f"=== === === WARNING! === === ===")
+                print(msg)
+                print(f"=== === === ===  === === === ===")
+
         return pes
