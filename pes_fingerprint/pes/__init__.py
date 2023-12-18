@@ -5,6 +5,8 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
+from ..topological import wave_search
+
 
 class PESCalculator:
     energy_validation_threshold: float = 0.2
@@ -13,6 +15,7 @@ class PESCalculator:
     assert_distance_validation: bool = True
     radius_cutoff: float = 0.8
     grid_size: Tuple[int, int, int] = (40, 40, 40)
+    assert_minimum_inside: bool = True
 
     def __init__(
         self,
@@ -37,25 +40,19 @@ class PESCalculator:
 
         assert self.ids_of_interest.ndim == 1
         assert len(self.ids_of_interest) > 0
+        assert ((self.ids_of_interest >= 0) & (self.ids_of_interest < len(self.source_atoms))).all()
 
         if isinstance(calculator, Calculator):
-            calculator = PESCalculator._wrap_calculator(calculator)
+            calculator = PESCalculator._convert_calculator(calculator)
         self.calculator = calculator
 
         for k, v in kwargs.items():
             assert hasattr(self, k), f"Bad argument: {str(k)}"
             setattr(self, k, v)
 
-    def run(self):
+    def run(self) -> None:
         self._calculate_pes()
         self._find_minimum()
-
-        self.wrapped_imin, self.wrapped_pes = [], []
-        for imin, pes_i in zip(self.imin, self.pes):
-            (w_pes, w_imin) = PESCalculator._wrap_pes(pes_i, imin)
-            self.wrapped_imin.append(w_imin)
-            self.wrapped_pes.append(w_pes)
-
 
     @staticmethod
     def _generate_grid(cell: np.ndarray, size: Tuple[int, int, int]) -> np.ndarray:
@@ -71,7 +68,7 @@ class PESCalculator:
         return grid_scaled @ cell
 
     @staticmethod
-    def _wrap_calculator(calc: Calculator) -> Callable:
+    def _convert_calculator(calc: Calculator) -> Callable:
         def _calculate(structs: List[Atoms]) -> List[float]:
             energies = []
             working_struct = structs[0].copy()
@@ -153,7 +150,21 @@ class PESCalculator:
             for pes_i in self.pes
         ]
         np_imin = np.array(self.imin)
-        assert not ((np_imin == 0) | (np_imin == self.grid_size)).any(), "Minimum at the edge of the grid"
+
+        # Perform checks
+        min_at_edge = (np_imin == 0) | (np_imin == self.grid_size)
+        if min_at_edge.any():
+            (bad_min_ids,) = np.where(min_at_edge.any(axis=1))
+            msg = "Minimum at the edge of the grid for following ion(s): " + (
+                ", ".join(str(self.ids_of_interest[i]) for i in bad_min_ids)
+            )
+            if self.assert_minimum_inside:
+                assert False, msg
+            else:
+                print(f"=== === === WARNING! === === ===")
+                print(msg)
+                print(f"=== === === ===  === === === ===")
+
         failed_checks = []
         for imin, i_mob in zip(self.imin, self.ids_of_interest):
             predicted = (np.array(imin) / np.array(self.grid_size)) @ self.source_atoms.cell.array
@@ -179,6 +190,15 @@ class PESCalculator:
                 print(msg)
                 print(f"=== === === ===  === === === ===")
 
+
+class BarrierCalculator(PESCalculator):
+    minimal_lvl_increase: float = 0.1
+    verbose_wave_search: bool = True
+
+    def __init__(self, store_wavefront: bool, **kwargs):
+        self.store_wavefront = store_wavefront
+        super().__init__(**kwargs)
+
     @staticmethod
     def _wrap_pes(
         pes: np.ndarray,
@@ -194,3 +214,48 @@ class PESCalculator:
         i_center = pes.shape
         assert result[i_center] == pes[location]
         return result, i_center
+
+    def _calculate_wrapped_pes(self) -> None:
+        assert not hasattr(self, "wrapped_imin")
+        assert not hasattr(self, "wrapped_pes")
+        self.wrapped_imin, self.wrapped_pes = [], []
+        for imin, pes_i in zip(self.imin, self.pes):
+            (w_pes, w_imin) = BarrierCalculator._wrap_pes(pes_i, imin)
+            self.wrapped_imin.append(w_imin)
+            self.wrapped_pes.append(w_pes)
+
+    def _calculate_levels(self) -> None:
+        assert not hasattr(self, "levels")
+        assert not hasattr(self, "wavefronts")
+        self.levels = []
+        if self.store_wavefront:
+            self.wavefronts = []
+
+        for imin, pes in zip(self.wrapped_imin, self.wrapped_pes):
+            args = dict(
+                potential=pes,
+                seed=imin,
+                early_stop="any_face",
+                minimal_lvl_increase=self.minimal_lvl_increase,
+                progress_bar=self.verbose_wave_search,
+            )
+            if self.store_wavefront:
+                wf = []
+                self.wavefronts.append(wf)
+                args["fill_wavefront_ids_list"] = wf
+            self.levels.append(
+                wave_search(**args)
+            )
+
+    def run(self) -> None:
+        super().run()
+        self._calculate_wrapped_pes()
+        self._calculate_levels()
+
+        self.barrier = [
+            min(
+                levels[0].min(), levels[-1].min(),
+                levels[:, 0].min(), levels[:, -1].min(),
+                levels[..., 0].min(), levels[..., -1].min(),
+            ) for levels in self.levels
+        ]
