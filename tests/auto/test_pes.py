@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
 import numpy as np
 
 from pes_fingerprint.pes import PESCalculator, BarrierCalculator
+from pes_fingerprint.topological.utils import visualize_wavefront
 
 
 @pytest.fixture
@@ -41,10 +44,23 @@ def test_barrier_search(structure):
         source_atoms=structure,
         calculator=EMT(),
         ids_of_interest=[5, 7],
-        grid_size=(6, 6, 6),
+        grid_size=(20, 20, 20),
         assert_minimum_inside=False,
         store_wavefront=True,
     )
     bar_calc.run()
     for m, imob in zip(bar_calc.barrier, bar_calc.ids_of_interest):
         print(f"Minimum barrier for ion #{imob} is {m:.3f} eV (according to the EMT calculator)")
+
+    export_path = Path(__file__).parent / "vis"
+    if not export_path.exists():
+        export_path.mkdir()
+    for levels, wf, imob in zip(bar_calc.levels, bar_calc.wavefronts, bar_calc.ids_of_interest):
+        assert levels.shape == (41, 41, 41)
+        fig = visualize_wavefront(
+            wf=wf,
+            target_shape=levels.shape,
+            unit_cell=structure.cell.array * (41 / 20),
+            energy_levels=levels,
+        )
+        fig.write_html(export_path / f"barrier_search_{imob:02d}.html", auto_play=False)
