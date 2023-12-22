@@ -50,6 +50,8 @@ class PESCalculator:
             assert hasattr(self, k), f"Bad argument: {str(k)}"
             setattr(self, k, v)
 
+        self._error_msgs = []
+
     def run(self) -> None:
         self._calculate_pes()
         self._find_minimum()
@@ -136,6 +138,7 @@ class PESCalculator:
                     for emin, i_mob in failed_checks
                 )
             )
+            self._error_msgs.append(msg)
             if self.assert_energy_validation:
                 assert False, msg
             else:
@@ -158,6 +161,7 @@ class PESCalculator:
             msg = "Minimum at the edge of the grid for following ion(s): " + (
                 ", ".join(str(self.ids_of_interest[i]) for i in bad_min_ids)
             )
+            self._error_msgs.append(msg)
             if self.assert_minimum_inside:
                 assert False, msg
             else:
@@ -183,6 +187,7 @@ class PESCalculator:
                     for imin, i_mob, dist in failed_checks
                 )
             )
+            self._error_msgs.append(msg)
             if self.assert_distance_validation:
                 assert False, msg
             else:
