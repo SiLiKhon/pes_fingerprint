@@ -1,7 +1,29 @@
-from typing import Optional, Tuple, List, Callable, Literal
+from typing import Optional, Tuple, List, Callable, Literal, Union
 
 import numpy as np
 from tqdm.auto import tqdm
+
+
+def _generate_steps(
+    connectivity: Union[float, Literal["all", "minimal"]],
+    cell: Optional[np.ndarray],
+    grid_shape: Tuple[int, int, int],
+) -> np.ndarray:
+    steps = np.stack(np.meshgrid(*[[-1, 0, 1]] * 3), axis=-1).reshape(-1, 3)
+    steps = steps[(steps != 0).any(axis=-1)]
+    if connectivity != "all":
+        grid_vectors = cell / np.array(grid_shape)[:, None]
+        grid_vector_lengths = np.sqrt((grid_vectors**2).sum(axis=1))
+        if connectivity == "minimal":
+            connectivity = grid_vector_lengths.max() + 1e-4
+        assert (grid_vector_lengths < connectivity).all(), (
+            f"Some grid vectors are longer than connectivity ({connectivity:.3f}): {np.round(grid_vector_lengths, 3)}"
+        )
+        steps_absolute = (steps @ grid_vectors)
+        selection = (steps_absolute**2).sum(axis=-1) <= connectivity**2
+        steps = steps[selection]
+    assert len(steps) >= 6
+    return steps
 
 def wave_search(
     potential: np.ndarray,
@@ -11,6 +33,8 @@ def wave_search(
     fill_wavefront_ids_list: Optional[list] = None,
     early_stop: Literal["any_face", "faces", "off"] = "off",
     early_stop_faces: Optional[List[int]] = None,
+    connectivity: Union[float, Literal["all", "minimal"]] = "all",
+    cell: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Function that traverses a potential map on a grid (3d array) and returns an array
@@ -20,6 +44,11 @@ def wave_search(
     assert potential.ndim == 3
     assert not np.isnan(potential).any()
     assert all(i >= 0 for i in seed)
+    if connectivity == "all":
+        assert cell is None
+    else:
+        assert isinstance(cell, np.ndarray)
+        assert cell.shape == (3, 3)
 
     shape = potential.shape
 
@@ -46,15 +75,16 @@ def wave_search(
     observed[seed] = True
 
     # array of steps to make at single iteration (moving the border/wavefront)
-    deltas = np.stack(np.meshgrid(*[[-1, 0, 1]] * 3), axis=-1).reshape(-1, 3)
-    deltas = deltas[(deltas != 0).any(axis=-1)]
+    deltas = _generate_steps(connectivity, cell, potential.shape)
 
     # Adding deltas makes the shift, while adding zeros of same shape gives us a "map to source"
     # to know where we came there from. To do the two additions simultaneously, keep both deltas
     # and zeros in the same array.
     zeros_like_deltas = np.zeros_like(deltas)
     deltas_and_zeros = np.stack([deltas, zeros_like_deltas], axis=-1).astype("int64")
-    assert deltas_and_zeros.shape == (26, 3, 2)
+    assert deltas_and_zeros.shape[1:] == (3, 2)
+    if connectivity == "all":
+        assert len(deltas_and_zeros) == 26
 
     # initialize the border
     border_last = np.stack([np.array([i]) for i in seed], axis=-1).astype("int64")

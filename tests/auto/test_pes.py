@@ -39,7 +39,10 @@ def test_calculator_id(structure):
     assert len(pes_calc.imin) == len(pes_calc.pes) == 2
     assert pes_calc.pes[0].shape == pes_calc.pes[1].shape == (6, 6, 6)
 
-def test_barrier_search(structure):
+@pytest.mark.parametrize("connectivity,minimal_lvl_increase", [
+    ("all", 0.1), ("minimal", 0.1), ("all", 0.0), ("minimal", 0.0)
+])
+def test_barrier_search(structure, connectivity, minimal_lvl_increase):
     bar_calc = BarrierCalculator(
         source_atoms=structure,
         calculator=EMT(),
@@ -47,6 +50,8 @@ def test_barrier_search(structure):
         grid_size=(20, 20, 20),
         assert_minimum_inside=False,
         store_wavefront=True,
+        connectivity=connectivity,
+        minimal_lvl_increase=minimal_lvl_increase,
     )
     bar_calc.run()
     for m, imob in zip(bar_calc.barrier, bar_calc.ids_of_interest):
@@ -63,4 +68,7 @@ def test_barrier_search(structure):
             unit_cell=structure.cell.array * (41 / 20),
             energy_levels=levels,
         )
-        fig.write_html(export_path / f"barrier_search_{imob:02d}.html", auto_play=False)
+        fig.write_html(
+            export_path / f"barrier_search_{imob:02d}_connectivity_{connectivity}_min_inc_{minimal_lvl_increase:.1}.html",
+            auto_play=False,
+        )

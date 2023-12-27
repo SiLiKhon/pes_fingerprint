@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, List, Union, Callable
+from typing import Tuple, Optional, List, Union, Callable, Literal
 
 from tqdm.auto import tqdm
 import numpy as np
@@ -199,6 +199,7 @@ class PESCalculator:
 class BarrierCalculator(PESCalculator):
     minimal_lvl_increase: float = 0.1
     verbose_wave_search: bool = True
+    connectivity: Union[float, Literal["all", "minimal"]] = "all"
 
     def __init__(self, store_wavefront: bool, **kwargs):
         self.store_wavefront = store_wavefront
@@ -243,11 +244,16 @@ class BarrierCalculator(PESCalculator):
                 early_stop="any_face",
                 minimal_lvl_increase=self.minimal_lvl_increase,
                 progress_bar=self.verbose_wave_search,
+                connectivity=self.connectivity,
             )
             if self.store_wavefront:
                 wf = []
                 self.wavefronts.append(wf)
                 args["fill_wavefront_ids_list"] = wf
+            if self.connectivity != "all":
+                assert (tuple(np.array(self.grid_size) * 2 + 1) == pes.shape)
+                multipliers = np.array(pes.shape) / self.grid_size
+                args["cell"] = self.source_atoms.cell.array * multipliers[:, None]
             self.levels.append(
                 wave_search(**args)
             )
