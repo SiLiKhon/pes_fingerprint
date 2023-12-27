@@ -40,7 +40,7 @@ def test_calculator_id(structure):
     assert pes_calc.pes[0].shape == pes_calc.pes[1].shape == (6, 6, 6)
 
 @pytest.mark.parametrize("connectivity,minimal_lvl_increase", [
-    ("all", 0.1), ("minimal", 0.1), ("all", 0.0), ("minimal", 0.0)
+    ("all", 0.1), ("minimal", 0.1), ("sqrt3", 0.1), ("all", 0.0), ("minimal", 0.0), ("sqrt3", 0.0)
 ])
 def test_barrier_search(structure, connectivity, minimal_lvl_increase):
     bar_calc = BarrierCalculator(

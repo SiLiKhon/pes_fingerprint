@@ -5,7 +5,7 @@ from tqdm.auto import tqdm
 
 
 def _generate_steps(
-    connectivity: Union[float, Literal["all", "minimal"]],
+    connectivity: Union[float, Literal["all", "minimal", "sqrt3"]],
     cell: Optional[np.ndarray],
     grid_shape: Tuple[int, int, int],
 ) -> np.ndarray:
@@ -16,6 +16,8 @@ def _generate_steps(
         grid_vector_lengths = np.sqrt((grid_vectors**2).sum(axis=1))
         if connectivity == "minimal":
             connectivity = grid_vector_lengths.max() + 1e-4
+        elif connectivity == "sqrt3":
+            connectivity = np.sqrt((grid_vector_lengths**2).sum()) + 1e-4
         assert (grid_vector_lengths < connectivity).all(), (
             f"Some grid vectors are longer than connectivity ({connectivity:.3f}): {np.round(grid_vector_lengths, 3)}"
         )
@@ -33,7 +35,7 @@ def wave_search(
     fill_wavefront_ids_list: Optional[list] = None,
     early_stop: Literal["any_face", "faces", "off"] = "off",
     early_stop_faces: Optional[List[int]] = None,
-    connectivity: Union[float, Literal["all", "minimal"]] = "all",
+    connectivity: Union[float, Literal["all", "minimal", "sqrt3"]] = "all",
     cell: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """

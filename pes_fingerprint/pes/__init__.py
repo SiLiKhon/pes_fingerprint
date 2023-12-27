@@ -199,7 +199,7 @@ class PESCalculator:
 class BarrierCalculator(PESCalculator):
     minimal_lvl_increase: float = 0.1
     verbose_wave_search: bool = True
-    connectivity: Union[float, Literal["all", "minimal"]] = "all"
+    connectivity: Union[float, Literal["all", "minimal", "sqrt3"]] = "all"
 
     def __init__(self, store_wavefront: bool, **kwargs):
         self.store_wavefront = store_wavefront
