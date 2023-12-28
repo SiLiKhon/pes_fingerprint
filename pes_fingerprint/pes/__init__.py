@@ -6,6 +6,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from ..topological import wave_search
+from .utils import deduce_grid_size
 
 
 class PESCalculator:
@@ -46,6 +47,8 @@ class PESCalculator:
             calculator = PESCalculator._convert_calculator(calculator)
         self.calculator = calculator
 
+        if "grid_size" in kwargs and isinstance(kwargs["grid_size"], float):
+            kwargs["grid_size"] = deduce_grid_size(self.source_atoms, kwargs["grid_size"])
         for k, v in kwargs.items():
             assert hasattr(self, k), f"Bad argument: {str(k)}"
             setattr(self, k, v)
