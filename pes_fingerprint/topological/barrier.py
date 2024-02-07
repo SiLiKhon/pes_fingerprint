@@ -33,8 +33,9 @@ def wave_search(
     minimal_lvl_increase: float = 0.1,
     progress_bar: bool = True,
     fill_wavefront_ids_list: Optional[list] = None,
-    early_stop: Literal["any_face", "faces", "off"] = "off",
+    early_stop: Literal["any_face", "faces", "off", "level"] = "off",
     early_stop_faces: Optional[List[int]] = None,
+    early_stop_level: Optional[float] = None,
     connectivity: Union[float, Literal["all", "minimal", "sqrt3"]] = "all",
     cell: Optional[np.ndarray] = None,
 ) -> np.ndarray:
@@ -55,6 +56,10 @@ def wave_search(
     shape = potential.shape
 
     stop_condition_met = False
+    if early_stop != "faces":
+        assert early_stop_faces is None
+    if early_stop != "level":
+        assert early_stop_level is None
     if early_stop in ("any_face", "faces"):
         check_stop_condition = True
         faces_pattern = np.array([True] * 3)
@@ -62,8 +67,11 @@ def wave_search(
             faces_pattern = ~faces_pattern
             for i in early_stop_faces:
                 faces_pattern[i] = True
+    elif early_stop == "level":
+        check_stop_condition = True
+        early_stop_level = float(early_stop_level)
+        assert early_stop_level > 0
     elif early_stop == "off":
-        assert early_stop_faces is None
         check_stop_condition = False
     else:
         raise NotImplementedError(early_stop)
@@ -204,7 +212,10 @@ def wave_search(
         wf_updated = True
         if check_stop_condition:
             if not stop_condition_met:
-                if (
+                if early_stop == "level":
+                    if current_level - levels[seed] >= early_stop_level:
+                        stop_condition_met = True
+                elif (
                     ((border_last == 0) | ((border_last + 1) == shape)) & faces_pattern[None, :]
                 ).any():
                     print("Early stopping")

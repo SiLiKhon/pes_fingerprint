@@ -71,13 +71,18 @@ def prepare_1d_data(
     return np.tile(yy, tiles)
 
 
-def test_1d_data(early_stop: bool):
+def test_1d_data(early_stop: Literal["off", "faces", "level"]):
     for axis in range(3):
         excl_axes = tuple(a for a in range(3) if a != axis)
         additional_args = {}
-        if early_stop:
+        if early_stop == "faces":
             additional_args["early_stop"] = "faces"
             additional_args["early_stop_faces"] = [axis]
+        elif early_stop == "level":
+            additional_args["early_stop"] = "level"
+            additional_args["early_stop_level"] = 2.0
+        else:
+            assert early_stop == "off", early_stop
 
         potential = prepare_1d_data(length_axis=axis)
         assert np.allclose(potential.std(axis=excl_axes), 0, atol=1e-10)
@@ -89,7 +94,7 @@ def test_1d_data(early_stop: bool):
             fill_wavefront_ids_list=tmp_wf,
             **additional_args,
         )
-        if not early_stop:
+        if early_stop == "off":
             tmp_wf_noopt = []
             levels_noopt = wave_search_noopt(
                 potential=potential,
@@ -157,7 +162,7 @@ def prepare_2d_data(
     return np.tile(spiral_2d[tuple(indexer)], repeats)
 
 
-def test_2d_data(early_stop: bool) -> np.ndarray:
+def test_2d_data(early_stop: Literal["off", "faces", "level"]) -> np.ndarray:
     levels = {}
     data = {}
     shape_v = (50, 80)
@@ -170,9 +175,14 @@ def test_2d_data(early_stop: bool) -> np.ndarray:
         data[size_2d] = {}
         for axis in range(3):
             additional_args = {}
-            if early_stop:
+            if early_stop == "faces":
                 additional_args["early_stop"] = "faces"
                 additional_args["early_stop_faces"] = [i for i in range(3) if i != axis]
+            elif early_stop == "level":
+                additional_args["early_stop"] = "level"
+                additional_args["early_stop_level"] = 50.0
+            else:
+                assert early_stop == "off", early_stop
             data[size_2d][axis] = prepare_2d_data(size_2d=size_2d, depth_axis=axis, depth=depth)
             tmp_wf = []
             levels[size_2d][axis] = wave_search_w(
@@ -184,7 +194,7 @@ def test_2d_data(early_stop: bool) -> np.ndarray:
             if (size_2d == shape_h and axis == 0):
                 wavefront = tmp_wf
 
-            if not early_stop:
+            if early_stop == "off":
                 tmp_wf_noopt = []
                 lvls_noopt = wave_search_noopt(
                     potential=data[size_2d][axis],
@@ -265,12 +275,17 @@ def prepare_3d_spiral(
     return data
 
 
-def test_3d_data(early_stop: bool):
+def test_3d_data(early_stop: Literal["off", "faces", "level"]):
     shape = (40, 50, 70)
     data = prepare_3d_spiral(size=shape)
     additional_args = {}
-    if early_stop:
+    if early_stop == "faces":
         additional_args["early_stop"] = "any_face"
+    elif early_stop == "level":
+        additional_args["early_stop"] = "level"
+        additional_args["early_stop_level"] = 20.0
+    else:
+        assert early_stop == "off", early_stop
     wavefront = []
     levels = wave_search_w(
         potential=data,
@@ -278,7 +293,7 @@ def test_3d_data(early_stop: bool):
         fill_wavefront_ids_list=wavefront,
         **additional_args,
     )
-    if not early_stop:
+    if early_stop == "off":
         wavefront_noopt = []
         levels_noopt = wave_search_noopt(
             potential=data,
@@ -295,7 +310,7 @@ if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument("tests", type=str, choices=["all", "1d", "2d", "3d"])
-    parser.add_argument("--early_stop", action="store_true", default=False)
+    parser.add_argument("--early_stop", type=str, choices=["off", "faces", "level"], default="off")
     args = parser.parse_args()
     tests_to_do = args.tests
     early_stop = args.early_stop
