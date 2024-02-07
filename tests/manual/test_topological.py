@@ -1,11 +1,41 @@
 from typing import Literal, Tuple, List
+from pathlib import Path
+from git import Repo
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import joblib
 
 from pes_fingerprint.topological import wave_search, utils
 from pes_fingerprint.topological.barrier_validated_noopt import wave_search as wave_search_noopt
+
+
+REPO = Repo(Path(__file__).parent.parent.parent.as_posix())
+HEAD = REPO.head.commit.hexsha
+if REPO.is_dirty(untracked_files=True):
+    HEAD += "-dirty"
+EXPORT_PATH = Path(__file__).parent / "outputs" / HEAD
+if not EXPORT_PATH.exists():
+    EXPORT_PATH.mkdir(parents=True)
+
+
+def wave_search_w(**kwargs):
+    call_id = joblib.hash(kwargs)
+    save_dir_base = EXPORT_PATH / call_id
+    i = 0
+    while True:
+        assert i < 1000
+        save_dir = save_dir_base.with_suffix(f".{i:03d}.pkl")
+        if not save_dir.exists():
+            break
+        i += 1
+
+    result = wave_search(**kwargs)
+    result_dump = (result, kwargs.get("fill_wavefront_ids_list", None))
+    assert not save_dir.exists()
+    joblib.dump(result_dump, save_dir.as_posix())
+    return result
 
 
 def _compare_wavefronts(
@@ -53,7 +83,7 @@ def test_1d_data(early_stop: bool):
         assert np.allclose(potential.std(axis=excl_axes), 0, atol=1e-10)
 
         tmp_wf = []
-        levels = wave_search(
+        levels = wave_search_w(
             potential=potential,
             seed=np.unravel_index(potential.argmin(),potential.shape),
             fill_wavefront_ids_list=tmp_wf,
@@ -145,7 +175,7 @@ def test_2d_data(early_stop: bool) -> np.ndarray:
                 additional_args["early_stop_faces"] = [i for i in range(3) if i != axis]
             data[size_2d][axis] = prepare_2d_data(size_2d=size_2d, depth_axis=axis, depth=depth)
             tmp_wf = []
-            levels[size_2d][axis] = wave_search(
+            levels[size_2d][axis] = wave_search_w(
                 potential=data[size_2d][axis],
                 seed=np.unravel_index(data[size_2d][axis].argmin(), data[size_2d][axis].shape),
                 fill_wavefront_ids_list=tmp_wf,
@@ -242,8 +272,8 @@ def test_3d_data(early_stop: bool):
     if early_stop:
         additional_args["early_stop"] = "any_face"
     wavefront = []
-    levels = wave_search(
-        data,
+    levels = wave_search_w(
+        potential=data,
         seed=np.unravel_index(data.argmin(), data.shape),
         fill_wavefront_ids_list=wavefront,
         **additional_args,
@@ -251,7 +281,7 @@ def test_3d_data(early_stop: bool):
     if not early_stop:
         wavefront_noopt = []
         levels_noopt = wave_search_noopt(
-            data,
+            potential=data,
             seed=np.unravel_index(data.argmin(), data.shape),
             fill_wavefront_ids_list=wavefront_noopt,
         )
