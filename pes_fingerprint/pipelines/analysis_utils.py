@@ -256,6 +256,7 @@ def process_structure(
     assert max(free_volume_levels) <= early_stop_level
 
     (mobile_ids,) = np.where([el == mobile_species for el in atoms.symbols])
+    mobile_ids = [int(i) for i in mobile_ids]
     assert len(mobile_ids) > 0
     _filter = lambda x: {
         k: x[k] for k in [
@@ -268,7 +269,7 @@ def process_structure(
         ) for mobile_id in mobile_ids
     ]
     level_preds = [
-        calculate_levels(atoms=atoms, mobile_id=mobile_id, **levels_params)
+        calculate_levels(atoms=atoms, mobile_id=mobile_id, **levels_params, mpe_params=mpe_params)
         for mobile_id in mobile_ids
     ]
 
