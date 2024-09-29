@@ -1,0 +1,20 @@
+tqdm
+numpy
+joblib
+ase
+scikit-image
+plotly
+
+# m3gnet
+m3gnet==0.2.4
+tensorflow
+
+# visualization
+meshlib
+
+# manual tests
+GitPython
+matplotlib
+
+# automated tests
+pytest
