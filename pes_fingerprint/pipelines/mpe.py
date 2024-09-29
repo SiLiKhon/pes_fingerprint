@@ -6,7 +6,7 @@ import ase.calculators.calculator
 
 from ..pes import BarrierCalculator
 from .calculators import get_calculator
-from .cache_utils import setup_cache
+from .cache_utils import setup_cache, serialize_atoms, deserialize_atoms
 
 _memory = setup_cache()
 
@@ -25,8 +25,7 @@ def _calculate_mpe(
     calculator = get_calculator(**calculator_params)
 
     structure_params = kwargs.pop("structure_params")
-    assert len(structure_params) == 3
-    atoms = ase.Atoms(**structure_params, pbc=True)
+    atoms = deserialize_atoms(structure_params)
 
     mobile_id = kwargs.pop("mobile_id")
     calc = BarrierCalculator(
@@ -83,9 +82,5 @@ def calculate_mpe(
         **params,
         mobile_id=mobile_id,
         calculator_params=calculator_params,
-        structure_params=dict(
-            symbols=[str(el) for el in atoms.symbols],
-            positions=atoms.positions,
-            cell=atoms.cell.array,
-        ),
+        structure_params=serialize_atoms(atoms),
     )
