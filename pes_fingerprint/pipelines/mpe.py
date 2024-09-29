@@ -3,12 +3,13 @@ from typing import Any, Dict, Literal, Optional, Tuple, Union
 import ase
 import ase.calculators
 import ase.calculators.calculator
-import joblib
 
 from ..pes import BarrierCalculator
 from .calculators import get_calculator
+from .cache_utils import setup_cache
 
-_memory = joblib.Memory("cache")
+_memory = setup_cache()
+
 
 @_memory.cache(ignore=["calculator_params_ignored_in_cache"])
 def _calculate_mpe(
