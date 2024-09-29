@@ -1,5 +1,6 @@
 import os
 from typing import Dict, List, Optional, Union
+from functools import lru_cache
 
 import joblib
 from ase import Atoms
@@ -9,6 +10,7 @@ import numpy as np
 CACHE_ENV_VAR = "PFP_CACHE"
 DEFAULT_CACHE_PATH = "./cache"
 
+@lru_cache
 def setup_cache(
     cache_path: Optional[str] = None,
 ) -> joblib.Memory:
