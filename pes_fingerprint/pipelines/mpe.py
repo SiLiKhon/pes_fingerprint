@@ -19,7 +19,8 @@ def _calculate_mpe(
     params = dict()
     params.update(kwargs)
 
-    calculator_params = kwargs.pop("calculator_params")
+    calculator_params = {}
+    calculator_params.update(kwargs.pop("calculator_params"))
     if calculator_params_ignored_in_cache is not None:
         calculator_params.update(calculator_params_ignored_in_cache)
     calculator = get_calculator(**calculator_params)
