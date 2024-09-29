@@ -1,6 +1,5 @@
-from typing import Any, Callable, Dict, List, Literal, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
-import numpy as np
 import ase
 import ase.calculators
 import ase.calculators.calculator
@@ -11,12 +10,17 @@ from .calculators import get_calculator
 
 _memory = joblib.Memory("cache")
 
-@_memory.cache
-def _calculate_mpe(**kwargs) -> Dict[str, Any]:
+@_memory.cache(ignore=["calculator_params_ignored_in_cache"])
+def _calculate_mpe(
+    calculator_params_ignored_in_cache: Optional[Dict[str, Any]] = None,
+    **kwargs,
+) -> Dict[str, Any]:
     params = dict()
     params.update(kwargs)
 
     calculator_params = kwargs.pop("calculator_params")
+    if calculator_params_ignored_in_cache is not None:
+        calculator_params.update(calculator_params_ignored_in_cache)
     calculator = get_calculator(**calculator_params)
 
     structure_params = kwargs.pop("structure_params")
@@ -54,7 +58,7 @@ def calculate_mpe(
     *,
     atoms: ase.Atoms,
     mobile_id: int,
-    calculator_params: Union[Dict[str, Any], str] = "basic_m3gnet",
+    calculator_params: Union[Dict[str, Any], str] = "batched_m3gnet",
     grid_size: Union[Tuple[int, int, int], float] = 0.25,
     radius_cutoff: float = 1.2,
     connectivity: Union[float, Literal["all", "minimal", "sqrt3"]] = "sqrt3",
