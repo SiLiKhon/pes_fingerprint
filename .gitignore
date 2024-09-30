@@ -162,4 +162,4 @@ cython_debug/
 *.pkl
 *.html
 *.png
-cache/
+/cache
