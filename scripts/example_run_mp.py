@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--first", "-f", type=int, required=True)
     parser.add_argument("--last-inclusive", "-l", type=int, required=True)
     parser.add_argument("--num-jobs", "-n", type=int, required=True)
+    parser.add_argument("--export-to-file", "-o", type=str, default=None)
     args = parser.parse_args()
     assert args.last_inclusive >= args.first >= 0
 
@@ -45,3 +46,5 @@ if __name__ == "__main__":
             ["mpe", "fv_0p5_connected_union", "fv_0p5_disconnected_union", "Xi"]
         ].round(3).to_markdown(),
     )
+    if args.export_to_file is not None:
+        predictions.to_csv(args.export_to_file, index=True)
