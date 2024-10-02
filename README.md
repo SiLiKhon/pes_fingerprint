@@ -2,28 +2,72 @@
 
 ## Installation
 
-Optionally, though recommended for the default example, install the old `m3gnet`
-implementation:
+### Old M3GNet environment
+This is optional, but required to run our example scripts and reproduce our results.
 
-```bash
-pip install m3gnet==0.2.4 tensorflow==2.13
+#### Docker environment
+Dockerfile:
+```Dockerfile
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+RUN apt update && apt install -y python3.10 python3.10-dev python3-pip
+
+ARG USERNAME=container-user
+ARG USERID= # your user id goes here (output of `id -u`)
+ARG GROUPID= # your group id goes here (output of `id -g`)
+
+RUN groupadd --gid $GROUPID $USERNAME \
+    && useradd --uid $USERID --gid $GROUPID -m $USERNAME
+
+USER $USERNAME
+RUN python3 -m pip install jupyter m3gnet==0.2.4 tensorflow==2.13 pymatgen==2023.9.25
 ```
 
+#### Without docker
+These are the required packages, but it may be tricky to make the old `tensorflow` see your GPUs:
+```bash
+pip install m3gnet==0.2.4 tensorflow==2.13 pymatgen==2023.9.25
+```
+
+### Main requirements
 Then install the main requirements:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-
-Calculate PES descriptors for example `mp-1185319` structure (requires `m3gnet` installed):
+## Example structure calculation
+Calculate PES descriptors for the `mp-1185319` structure (requires `m3gnet` installed):
 ```bash
 python -m scripts.example_structure_calculation
 ```
 
+## Running on full Materials Project with minimal selection
+
+### Single GPU or CPU
+```bash
+python3 -m scripts.example_run_mp \
+  --num-jobs 10 \
+  --first 0 \
+  --last-inclusive 5999 \
+  --export-to-file predictions.csv
+```
+
+### Multiple GPUs
+This would be easy to automate, but so far one needs to manually start jobs on each GPU,
+e.g. by running each line in a separate teminal session (example with 2 GPUs):
+```bash
+CUDA_VISIBLE_DEVICES='0' python3 -m scripts.example_run_mp \
+  --num-jobs 10 --first 0 --last-inclusive 2999 --export-to-file predictions-0-2999.csv
+CUDA_VISIBLE_DEVICES='1' python3 -m scripts.example_run_mp \
+  --num-jobs 10 --first 3000 --last-inclusive 5999 --export-to-file predictions-3000-5999.csv
+```
+Note that 10 jobs per GPU as above would need ~40GB of GPU memory at peak memory usage,
+so please scale that parameter based on the available memory.
+
 ## Integrating alternative IAPs
 
-Here's an example SevenNet integration:
+Here's an example SevenNet integration (**only given as example, very inefficient, see note below**):
 ```bash
 pip install sevenn==0.9.3
 ```
