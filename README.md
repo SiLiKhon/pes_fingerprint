@@ -4,6 +4,15 @@ The method is described in [arXiv:2411.06804](https://arxiv.org/abs/2411.06804).
 
 You can run this code on the [Constructor Platform](https://constructor.app/platform/public/project/pes_fingerprint)!
 
+## Table of Contents
+- [Installation](#installation)
+    - [M3GNet installation (optional, but required to reproduce our results)](#old-m3gnet-environment)
+    - [Main requirements](#main-requirements)
+- [Minimal example](#example-structure-calculation)
+- [Reproducing our results](#running-on-full-materials-project-with-minimal-selection)
+- [Integrating other potentials](#integrating-alternative-iaps)
+- [Citations](#citations)
+
 ## Installation
 
 ### Old M3GNet environment
@@ -125,7 +134,7 @@ for k in ["mpe", "fv_0p5_connected_union", "fv_0p5_disconnected_union", "Xi"]:
 Note: the `calculator_func` from the above snippet is extremely inefficient and is only given as an example. The recommended way is to implement batching, similar to how it is done [in the original SevenNet code](https://github.com/MDIL-SNU/SevenNet/blob/v0.9.3/sevenn/scripts/inference.py#L178-L239).
 
 
-## Citation
+## Citations
 
 A. Maevskiy, A. Carvalho, E. Sataev, V. Turchyna, K. Noori, A. Rodin, A. H. Castro Neto and A. Ustyuzhanin,
 Predicting ionic conductivity in solids from the machine-learned potential energy landscape, [arXiv:2411.06804](https://arxiv.org/abs/2411.06804) (2024)
