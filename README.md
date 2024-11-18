@@ -2,6 +2,8 @@
 
 The method is described in [arXiv:2411.06804](https://arxiv.org/abs/2411.06804).
 
+You can run this code on the [Constructor Platform](https://constructor.app/platform/public/project/pes_fingerprint)!
+
 ## Installation
 
 ### Old M3GNet environment
