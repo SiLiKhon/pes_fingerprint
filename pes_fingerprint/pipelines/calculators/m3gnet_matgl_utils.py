@@ -58,3 +58,16 @@ class M3GNetBatchPES:
                 for i in range(0, len(atoms_set), batch_size)
             ]
         )
+
+    def estimate_gpu_memory_gb_per_structure(self, atoms: Atoms) -> float:
+        graph, _, _ = self.converter.get_graph(atoms)
+
+        total_memory = 0
+        for key in graph.ndata.keys():
+            array = graph.ndata[key]
+            total_memory += array.numel() * array.element_size()
+        for key in graph.edata.keys():
+            array = graph.edata[key]
+            total_memory += array.numel() * array.element_size()
+
+        return 500 * total_memory / 1024**3

@@ -78,6 +78,15 @@ CUDA_VISIBLE_DEVICES='1' python3 -m scripts.example_run_mp \
 Note that 10 jobs per GPU as above would need ~40GB of GPU memory at peak memory usage,
 so please scale that parameter based on the available memory.
 
+### Upd (April, 2025): MatGL version of M3GNet \[work-in-progress\]
+
+```bash
+CUDA_VISIBLE_DEVICES='0' python3 -m scripts.example_run_mp \
+  --num-jobs 10 --first 0 --last-inclusive 2999 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_m3gnet_matgl"}}}' \
+  --export-to-file=predictions-0-2999.csv
+```
+
 ## Integrating alternative IAPs
 
 Here's an example SevenNet integration (**only given as example, very inefficient, see note below**):

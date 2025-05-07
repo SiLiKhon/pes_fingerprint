@@ -69,16 +69,22 @@ def batched_m3gnet_calc_factory(
 
 @factory("batched_m3gnet_matgl")
 def batched_m3gnet_matgl_factory(
-    batch_size: int,
-    device: Literal["cpu", "cuda"] = "cpu",
+    device: Literal["cpu", "cuda"] = "cuda",
+    gpu_memory_goal: float = 2500.0,
 ):
     import torch
     from .m3gnet_matgl_utils import M3GNetBatchPES
     device = torch.device(device)
 
     m3gnet = M3GNetBatchPES(device=device)
+    mem_safety_factor = 2  # to account for outliers in memory estimation
 
     def _calc(structs):
-        return m3gnet(structs, batch_size=batch_size)
+        mb_per_structure = m3gnet.estimate_gpu_memory_gb_per_structure(structs[0]) * 1024
+        batch_size = np.ceil(gpu_memory_goal / mb_per_structure / mem_safety_factor).astype(int)
+        energies = m3gnet(structs, batch_size=batch_size)
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        return energies
 
     return _calc
