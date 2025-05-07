@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Union, Literal
 
 import numpy as np
 from tqdm.auto import trange
@@ -17,9 +17,11 @@ def factory(key: str) -> Callable[[FactoryType], FactoryType]:
         return func
     return _wrapper
 
+
 def get_calculator(key: str, **kwargs) -> CalcType:
     factory = _CALCULATOR_FACTORIES[key]
     return factory(**kwargs)
+
 
 @factory("basic_m3gnet")
 def basic_m3gnet_calc_factory(**kwargs) -> Calculator:
@@ -30,6 +32,7 @@ def basic_m3gnet_calc_factory(**kwargs) -> Calculator:
     )
     from m3gnet.models import M3GNet, M3GNetCalculator, Potential
     return M3GNetCalculator(Potential(M3GNet.load()))
+
 
 @factory("batched_m3gnet")
 def batched_m3gnet_calc_factory(
@@ -61,4 +64,21 @@ def batched_m3gnet_calc_factory(
             )["energies"]
             for i in trange(0, len(structs), superbatch_size)
         ], axis=0).tolist()
+    return _calc
+
+
+@factory("batched_m3gnet_matgl")
+def batched_m3gnet_matgl_factory(
+    batch_size: int,
+    device: Literal["cpu", "cuda"] = "cpu",
+):
+    import torch
+    from .m3gnet_matgl_utils import M3GNetBatchPES
+    device = torch.device(device)
+
+    m3gnet = M3GNetBatchPES(device=device)
+
+    def _calc(structs):
+        return m3gnet(structs, batch_size=batch_size)
+
     return _calc

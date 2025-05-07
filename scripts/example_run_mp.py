@@ -1,4 +1,5 @@
 from typing import Dict, List
+import json
 
 import pandas as pd
 from pymatgen.core import Structure
@@ -35,12 +36,16 @@ if __name__ == "__main__":
     parser.add_argument("--last-inclusive", "-l", type=int, required=True)
     parser.add_argument("--num-jobs", "-n", type=int, required=True)
     parser.add_argument("--export-to-file", "-o", type=str, default=None)
+    parser.add_argument("--kwargs-json", type=str, default=None)
     args = parser.parse_args()
     assert args.last_inclusive >= args.first >= 0
+    kwargs = {}
+    if args.kwargs_json is not None:
+        kwargs = json.loads(args.kwargs_json)
 
     docs = query_mp()[args.first: args.last_inclusive + 1]
 
-    predictions = process_mp_parallel(docs, num_jobs=args.num_jobs)
+    predictions = process_mp_parallel(docs, num_jobs=args.num_jobs, **kwargs)
     print(
         predictions[
             ["mpe", "fv_0p5_connected_union", "fv_0p5_disconnected_union", "Xi"]
