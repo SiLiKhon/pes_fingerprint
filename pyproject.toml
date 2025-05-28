@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pes_fingerprint"
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+    "tqdm",
+    "numpy",
+    "joblib",
+    "ase",
+    "scikit-image",
+    "plotly"
+]
+
+[project.scripts]
+pfp-run-ase = "pes_fingerprint_scripts.run_ase_atoms:main"
+
+[tool.setuptools]
+packages = ["pes_fingerprint", "pes_fingerprint_scripts"]

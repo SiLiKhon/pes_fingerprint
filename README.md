@@ -52,14 +52,14 @@ pip install -r requirements.txt
 ## Example structure calculation
 Calculate PES descriptors for the `mp-1185319` structure (requires `m3gnet` installed):
 ```bash
-python -m scripts.example_structure_calculation
+python -m pes_fingerprint_scripts.example_structure_calculation
 ```
 
 ## Running on full Materials Project with minimal selection
 
 ### Single GPU or CPU
 ```bash
-python3 -m scripts.example_run_mp \
+python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 \
   --first 0 \
   --last-inclusive 5999 \
@@ -70,9 +70,9 @@ python3 -m scripts.example_run_mp \
 This would be easy to automate, but so far one needs to manually start jobs on each GPU,
 e.g. by running each line in a separate teminal session (example with 2 GPUs):
 ```bash
-CUDA_VISIBLE_DEVICES='0' python3 -m scripts.example_run_mp \
+CUDA_VISIBLE_DEVICES='0' python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 --first 0 --last-inclusive 2999 --export-to-file predictions-0-2999.csv
-CUDA_VISIBLE_DEVICES='1' python3 -m scripts.example_run_mp \
+CUDA_VISIBLE_DEVICES='1' python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 --first 3000 --last-inclusive 5999 --export-to-file predictions-3000-5999.csv
 ```
 Note that 10 jobs per GPU as above would need ~40GB of GPU memory at peak memory usage,
@@ -81,7 +81,7 @@ so please scale that parameter based on the available memory.
 ### Upd (April, 2025): MatGL version of M3GNet \[work-in-progress\]
 
 ```bash
-CUDA_VISIBLE_DEVICES='0' python3 -m scripts.example_run_mp \
+CUDA_VISIBLE_DEVICES='0' python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 --first 0 --last-inclusive 2999 \
   --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_m3gnet_matgl"}}}' \
   --export-to-file=predictions-0-2999.csv
@@ -100,7 +100,7 @@ from tqdm.auto import tqdm
 from pes_fingerprint.pipelines.calculators import factory
 from pes_fingerprint.pipelines import process_structure
 from sevenn.sevennet_calculator import SevenNetCalculator
-from scripts.example_structure_calculation import build_mp_1185319
+from pes_fingerprint_scripts.example_structure_calculation import build_mp_1185319
 import torch
 torch.set_num_threads(1)
 

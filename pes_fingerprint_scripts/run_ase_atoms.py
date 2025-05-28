@@ -1,12 +1,13 @@
+from argparse import ArgumentParser
 import json
 
 from ase.io import read
+import pandas as pd
 
 from pes_fingerprint.pipelines import process_structures
 
 
-if __name__ == "__main__":
-    from argparse import ArgumentParser
+def parse_args_and_run() -> pd.DataFrame:
     parser = ArgumentParser()
     parser.add_argument("input_ase_traj", type=str)
     parser.add_argument("--num-jobs", "-n", type=int, required=True)
@@ -30,3 +31,13 @@ if __name__ == "__main__":
         ].round(3).to_markdown(),
     )
     predictions.to_csv(args.export_to_file, index=False)
+    return predictions
+
+
+def main() -> int:
+    parse_args_and_run()
+    return 0
+
+
+if __name__ == "__main__":
+    predictions = parse_args_and_run()
