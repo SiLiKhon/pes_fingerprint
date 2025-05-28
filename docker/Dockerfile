@@ -18,3 +18,8 @@ RUN mkdir -p /app/pes_fingerprint
 COPY build_tmp/source /app/pes_fingerprint
 RUN . /app/pfp_env/bin/activate && \
     pip3 install -e /app/pes_fingerprint
+
+COPY image_scripts/entrypoint.sh /app
+RUN mkdir /workdir && chmod -R 777 /workdir && chmod -R 777 /app
+
+ENTRYPOINT [ "/app/entrypoint.sh", "pfp-run-ase" ]

@@ -18,6 +18,15 @@ You can run this code on the [Constructor Platform](https://constructor.app/plat
 ### Old M3GNet environment
 This is optional, but required to run our example scripts and reproduce our results.
 
+#### Upd 2025-05: ready-to-use [docker image](https://hub.docker.com/r/silikhon/pes_fingerprint)
+
+Example:
+```bash
+docker run --rm -it --user $(id -u):$(id -u) --gpus 'device=0' -v ./:/workdir silikhon/pes_fingerprint:latest input-atoms-file.traj --num-jobs 5 -o output-file.csv
+```
+
+The `input-atoms-file.traj` should contain the list of `ase.Atoms` structures to run on (in [`ase` traj format](https://wiki.fysik.dtu.dk/ase/ase/io/formatoptions.html#traj)).
+
 #### Docker environment
 Dockerfile:
 ```Dockerfile
