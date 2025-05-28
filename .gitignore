@@ -163,3 +163,4 @@ cython_debug/
 *.html
 *.png
 /cache
+/docker/build_tmp/
