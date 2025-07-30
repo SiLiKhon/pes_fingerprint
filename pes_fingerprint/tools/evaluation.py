@@ -1,3 +1,6 @@
+from typing import Any, Callable
+
+from joblib import Parallel, delayed
 import numpy as np
 import pandas as pd
 
@@ -158,3 +161,34 @@ def average_precision_at_k(
         aggregations.loc["__RANDOM_GUESS_V2__"] = pd.Series(guess_entry_v2)
 
     return aggregations
+
+
+def bootstrap(
+    *,
+    function: Callable,
+    samples_args: dict[str, pd.Series | pd.DataFrame],
+    random_seed_args: list[str] | None,
+    other_args: dict[str, Any] | None = None,
+    num_samples: int = 1000,
+    num_jobs: int = 10,
+    random_seed: int = 42,
+) -> list[Any]:
+    _it = iter(map(lambda x: x.index, samples_args.values()))
+    index = next(_it)
+    for _idx in _it:
+        if (index != _idx).any():
+            raise ValueError("At least one of the indexes is not aligned with others")
+
+    rng = np.random.default_rng(random_seed)
+    bs_ids = rng.choice(len(index), (num_samples, len(index)), replace=True)
+
+    parallel_generator = (
+        delayed(function)(
+            **{arg_name: array.iloc[ii].reset_index(drop=True) for arg_name, array in samples_args.items()},
+            **({arg_name: rng.integers(2**31) for arg_name in random_seed_args} if random_seed_args else {}),
+            **(other_args or {}),
+        )
+        for ii in bs_ids
+    )
+
+    return Parallel(n_jobs=num_jobs)(parallel_generator)
