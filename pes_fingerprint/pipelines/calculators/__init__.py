@@ -94,7 +94,7 @@ def batched_m3gnet_matgl_factory(
 def batched_sevennet_factory(
     device: Literal["cpu", "cuda"] = "cuda",
     batch_size: int = 200,
-    num_cores: int | None = None,
+    num_cores: int | None = 10,
 ):
     import torch
     from .sevenn_utils import SevenNetBatchPES

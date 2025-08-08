@@ -8,6 +8,7 @@ from torch_geometric.loader import DataLoader
 import sevenn.util
 from sevenn.train.dataload import graph_build, _set_atoms_y
 from sevenn.train.dataset import AtomGraphDataset
+from tqdm.auto import tqdm
 
 
 def _assign_dummy_y(atoms: Atoms) -> Atoms:
@@ -53,6 +54,7 @@ class SevenNetBatchPES:
             self.sevenn_config["cutoff"],
             num_cores=self.num_cores,
             y_from_calc=False,
+            allow_unlabeled=True,
         )
         sevenn_inference_set = AtomGraphDataset(
             sevenn_data_list, self.sevenn_config["cutoff"]
@@ -68,7 +70,7 @@ class SevenNetBatchPES:
         energies = []
 
         with torch.no_grad():
-            for batch in sevenn_data:
+            for batch in tqdm(sevenn_data, desc="model prediction"):
                 batch = batch.to(self.device)
                 output = self.sevenn_model(batch)
                 energies.append(output.inferred_total_energy.detach().cpu().numpy())
