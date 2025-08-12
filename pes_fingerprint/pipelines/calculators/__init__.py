@@ -93,7 +93,7 @@ def batched_m3gnet_matgl_factory(
 @factory("batched_sevennet")
 def batched_sevennet_factory(
     device: Literal["cpu", "cuda"] = "cuda",
-    batch_size: int = 200,
+    target_gpu_memory_mb: float = 15000.0,
     num_cores: int | None = 10,
 ):
     import torch
@@ -101,7 +101,7 @@ def batched_sevennet_factory(
     sn = SevenNetBatchPES(num_cores=num_cores, device=device)
 
     def _calc(structs):
-        energies = sn(structs, batch_size=batch_size)
+        energies = sn(structs, target_gpu_memory_mb)
         if device == "cuda":
             torch.cuda.empty_cache()
         return energies

@@ -19,12 +19,16 @@ def _assign_dummy_y(atoms: Atoms) -> Atoms:
 
 
 class SevenNetBatchPES:
+    mem_estimate_safety_factor = 2.0
+
     def __init__(
         self,
         model_name: str = "7net-0",
         num_cores: int | None = None,
-        device: torch.device | None = None,
+        device: torch.device | str | None = None,
     ):
+        if isinstance(device, str):
+            device = torch.device(device)
         self.num_cores = num_cores
         self.device = device or torch.device("cpu")
         path = sevenn.util.pretrained_name_to_path(model_name)
@@ -44,6 +48,21 @@ class SevenNetBatchPES:
 
 
     def __call__(
+        self,
+        atoms_list: list[Atoms],
+        target_gpu_memory_mb: float,
+        base_batch_size: int = 200,
+    ) -> np.ndarray:
+        batch_size = base_batch_size
+        if self.device.type == "cuda":
+            mb_per_structure = self.estimate_memory_mb_per_structure(atoms_list[0])
+            batch_size = int(
+                target_gpu_memory_mb / mb_per_structure / self.mem_estimate_safety_factor
+            )
+        return self._call(atoms_list, batch_size)
+
+
+    def _call(
         self,
         atoms_list: list[Atoms],
         batch_size: int,
@@ -76,3 +95,17 @@ class SevenNetBatchPES:
                 energies.append(output.inferred_total_energy.detach().cpu().numpy())
 
         return np.concatenate(energies, axis=0)
+
+
+    def estimate_memory_mb_per_structure(self, atoms: Atoms, n_min: int = 1, n_max: int = 10) -> float:
+        assert self.device.type == "cuda", f"Expected cuda device, got {self.device.type}"
+        assert n_max > n_min
+        n_vals = [n_min, n_max]
+        mem_reserved = []
+        for n in n_vals:
+            self._call([atoms] * n, batch_size = int(n))
+            mem_reserved.append(torch.cuda.memory_reserved(self.device))
+            torch.cuda.empty_cache()
+
+        slope = (mem_reserved[1] - mem_reserved[0]) / 1024**2 / (n_max - n_min)
+        return slope
