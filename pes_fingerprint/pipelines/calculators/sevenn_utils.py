@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from warnings import warn
 
 import torch
 import numpy as np
@@ -82,19 +83,29 @@ class SevenNetBatchPES:
         sevenn_inference_set.toggle_requires_grad_of_data(sevenn._keys.POS, False)
         sevenn_infer_list = sevenn_inference_set.to_list()
 
-        sevenn_data = DataLoader(
-            sevenn_infer_list, batch_size=batch_size, shuffle=False
-        )
+        while True:
+            try:
+                sevenn_data = DataLoader(
+                    sevenn_infer_list, batch_size=batch_size, shuffle=False
+                )
 
-        energies = []
+                energies = []
 
-        with torch.no_grad():
-            for batch in tqdm(sevenn_data, desc="model prediction"):
-                batch = batch.to(self.device)
-                output = self.sevenn_model(batch)
-                energies.append(output.inferred_total_energy.detach().cpu().numpy())
+                with torch.no_grad():
+                    for batch in tqdm(sevenn_data, desc="model prediction"):
+                        batch = batch.to(self.device)
+                        output = self.sevenn_model(batch)
+                        energies.append(output.inferred_total_energy.detach().cpu().numpy())
 
-        return np.concatenate(energies, axis=0)
+                return np.concatenate(energies, axis=0)
+            except RuntimeError as e:
+                if "CUDA out of memory" not in e.args[0]:
+                    raise
+                batch_size = int(batch_size / 2)
+                if batch_size == 0:
+                    raise
+                warn(f"Detected CUDA OOM. Will attempt again with {batch_size = }")
+                torch.cuda.empty_cache()
 
 
     def estimate_memory_mb_per_structure(self, atoms: Atoms, n_min: int = 1, n_max: int = 10) -> float:
