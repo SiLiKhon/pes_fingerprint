@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Union, Literal
 
 import numpy as np
 from tqdm.auto import trange
@@ -17,9 +17,11 @@ def factory(key: str) -> Callable[[FactoryType], FactoryType]:
         return func
     return _wrapper
 
+
 def get_calculator(key: str, **kwargs) -> CalcType:
     factory = _CALCULATOR_FACTORIES[key]
     return factory(**kwargs)
+
 
 @factory("basic_m3gnet")
 def basic_m3gnet_calc_factory(**kwargs) -> Calculator:
@@ -30,6 +32,7 @@ def basic_m3gnet_calc_factory(**kwargs) -> Calculator:
     )
     from m3gnet.models import M3GNet, M3GNetCalculator, Potential
     return M3GNetCalculator(Potential(M3GNet.load()))
+
 
 @factory("batched_m3gnet")
 def batched_m3gnet_calc_factory(
@@ -61,4 +64,46 @@ def batched_m3gnet_calc_factory(
             )["energies"]
             for i in trange(0, len(structs), superbatch_size)
         ], axis=0).tolist()
+    return _calc
+
+
+@factory("batched_m3gnet_matgl")
+def batched_m3gnet_matgl_factory(
+    device: Literal["cpu", "cuda"] = "cuda",
+    gpu_memory_goal: float = 2500.0,
+):
+    import torch
+    from .m3gnet_matgl_utils import M3GNetBatchPES
+    device = torch.device(device)
+
+    m3gnet = M3GNetBatchPES(device=device)
+    mem_safety_factor = 2  # to account for outliers in memory estimation
+
+    def _calc(structs):
+        mb_per_structure = m3gnet.estimate_gpu_memory_gb_per_structure(structs[0]) * 1024
+        batch_size = np.ceil(gpu_memory_goal / mb_per_structure / mem_safety_factor).astype(int)
+        energies = m3gnet(structs, batch_size=batch_size)
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        return energies
+
+    return _calc
+
+
+@factory("batched_sevennet")
+def batched_sevennet_factory(
+    device: Literal["cpu", "cuda"] = "cuda",
+    target_gpu_memory_mb: float = 15000.0,
+    num_cores: int | None = 10,
+):
+    import torch
+    from .sevenn_utils import SevenNetBatchPES
+    sn = SevenNetBatchPES(num_cores=num_cores, device=device)
+
+    def _calc(structs):
+        energies = sn(structs, target_gpu_memory_mb)
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        return energies
+
     return _calc

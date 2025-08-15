@@ -1,6 +1,6 @@
 # PES fingerprint: characterizing ionic mobility in solids
 
-The method is described in [arXiv:2411.06804](https://arxiv.org/abs/2411.06804).
+The method is described in [10.1103/PhysRevResearch.7.023167](https://doi.org/10.1103/PhysRevResearch.7.023167).
 
 You can run this code on the [Constructor Platform](https://constructor.app/platform/public/project/pes_fingerprint)!
 
@@ -17,6 +17,15 @@ You can run this code on the [Constructor Platform](https://constructor.app/plat
 
 ### Old M3GNet environment
 This is optional, but required to run our example scripts and reproduce our results.
+
+#### Upd 2025-05: ready-to-use [docker image](https://hub.docker.com/r/silikhon/pes_fingerprint)
+
+Example:
+```bash
+docker run --rm -it --user $(id -u):$(id -u) --gpus 'device=0' -v ./:/workdir silikhon/pes_fingerprint:latest input-atoms-file.traj --num-jobs 5 -o output-file.csv
+```
+
+The `input-atoms-file.traj` should contain the list of `ase.Atoms` structures to run on (in [`ase` traj format](https://wiki.fysik.dtu.dk/ase/ase/io/formatoptions.html#traj)).
 
 #### Docker environment
 Dockerfile:
@@ -52,14 +61,14 @@ pip install -r requirements.txt
 ## Example structure calculation
 Calculate PES descriptors for the `mp-1185319` structure (requires `m3gnet` installed):
 ```bash
-python -m scripts.example_structure_calculation
+python -m pes_fingerprint_scripts.example_structure_calculation
 ```
 
 ## Running on full Materials Project with minimal selection
 
 ### Single GPU or CPU
 ```bash
-python3 -m scripts.example_run_mp \
+python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 \
   --first 0 \
   --last-inclusive 5999 \
@@ -70,13 +79,22 @@ python3 -m scripts.example_run_mp \
 This would be easy to automate, but so far one needs to manually start jobs on each GPU,
 e.g. by running each line in a separate teminal session (example with 2 GPUs):
 ```bash
-CUDA_VISIBLE_DEVICES='0' python3 -m scripts.example_run_mp \
+CUDA_VISIBLE_DEVICES='0' python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 --first 0 --last-inclusive 2999 --export-to-file predictions-0-2999.csv
-CUDA_VISIBLE_DEVICES='1' python3 -m scripts.example_run_mp \
+CUDA_VISIBLE_DEVICES='1' python3 -m pes_fingerprint_scripts.example_run_mp \
   --num-jobs 10 --first 3000 --last-inclusive 5999 --export-to-file predictions-3000-5999.csv
 ```
 Note that 10 jobs per GPU as above would need ~40GB of GPU memory at peak memory usage,
 so please scale that parameter based on the available memory.
+
+### Upd (April, 2025): MatGL version of M3GNet \[work-in-progress\]
+
+```bash
+CUDA_VISIBLE_DEVICES='0' python3 -m pes_fingerprint_scripts.example_run_mp \
+  --num-jobs 10 --first 0 --last-inclusive 2999 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_m3gnet_matgl"}}}' \
+  --export-to-file=predictions-0-2999.csv
+```
 
 ## Integrating alternative IAPs
 
@@ -91,7 +109,7 @@ from tqdm.auto import tqdm
 from pes_fingerprint.pipelines.calculators import factory
 from pes_fingerprint.pipelines import process_structure
 from sevenn.sevennet_calculator import SevenNetCalculator
-from scripts.example_structure_calculation import build_mp_1185319
+from pes_fingerprint_scripts.example_structure_calculation import build_mp_1185319
 import torch
 torch.set_num_threads(1)
 
@@ -133,8 +151,19 @@ for k in ["mpe", "fv_0p5_connected_union", "fv_0p5_disconnected_union", "Xi"]:
 
 Note: the `calculator_func` from the above snippet is extremely inefficient and is only given as an example. The recommended way is to implement batching, similar to how it is done [in the original SevenNet code](https://github.com/MDIL-SNU/SevenNet/blob/v0.9.3/sevenn/scripts/inference.py#L178-L239).
 
+*UPD 2025.08*: an efficient implementation for sevennet added and can be invoked with:
+```bash
+CUDA_VISIBLE_DEVICES='0' python3 \
+  -m pes_fingerprint_scripts.run_ase_atoms INPUT_ASE_ATOMS.traj \
+  --num-jobs 3 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_sevennet"}}}' \
+  --export-to-file=OUTPUT_PREDICTIONS.csv
+```
+Each of the 3 jobs is expected to take ~15GB of GPU memory, see the `target_gpu_memory_mb` parameter for `pes_fingerprint.pipelines.calculators.batched_sevennet_factory`.
+
+
 
 ## Citations
 
 A. Maevskiy, A. Carvalho, E. Sataev, V. Turchyna, K. Noori, A. Rodin, A. H. Castro Neto and A. Ustyuzhanin,
-Predicting ionic conductivity in solids from the machine-learned potential energy landscape, [arXiv:2411.06804](https://arxiv.org/abs/2411.06804) (2024)
+*Predicting ionic conductivity in solids from the machine-learned potential energy landscape*, Phys. Rev. Res., vol. 7, p. 023167, 2025, doi: [10.1103/PhysRevResearch.7.023167](https://doi.org/10.1103/PhysRevResearch.7.023167).
