@@ -151,8 +151,19 @@ for k in ["mpe", "fv_0p5_connected_union", "fv_0p5_disconnected_union", "Xi"]:
 
 Note: the `calculator_func` from the above snippet is extremely inefficient and is only given as an example. The recommended way is to implement batching, similar to how it is done [in the original SevenNet code](https://github.com/MDIL-SNU/SevenNet/blob/v0.9.3/sevenn/scripts/inference.py#L178-L239).
 
+*UPD 2025.08*: an efficient implementation for sevennet added and can be invoked with:
+```bash
+CUDA_VISIBLE_DEVICES='0' python3 \
+  -m pes_fingerprint_scripts.run_ase_atoms INPUT_ASE_ATOMS.traj \
+  --num-jobs 3 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_sevennet"}}}' \
+  --export-to-file=OUTPUT_PREDICTIONS.csv
+```
+Each of the 3 jobs is expected to take ~15GB of GPU memory, see the `target_gpu_memory_mb` parameter for `pes_fingerprint.pipelines.calculators.batched_sevennet_factory`.
+
+
 
 ## Citations
 
 A. Maevskiy, A. Carvalho, E. Sataev, V. Turchyna, K. Noori, A. Rodin, A. H. Castro Neto and A. Ustyuzhanin,
-Predicting ionic conductivity in solids from the machine-learned potential energy landscape, [arXiv:2411.06804](https://arxiv.org/abs/2411.06804) (2024)
+*Predicting ionic conductivity in solids from the machine-learned potential energy landscape*, Phys. Rev. Res., vol. 7, p. 023167, 2025, doi: [10.1103/PhysRevResearch.7.023167](https://doi.org/10.1103/PhysRevResearch.7.023167).
