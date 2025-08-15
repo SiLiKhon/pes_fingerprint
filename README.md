@@ -1,6 +1,6 @@
 # PES fingerprint: characterizing ionic mobility in solids
 
-The method is described in [arXiv:2411.06804](https://arxiv.org/abs/2411.06804).
+The method is described in [10.1103/PhysRevResearch.7.023167](https://doi.org/10.1103/PhysRevResearch.7.023167).
 
 You can run this code on the [Constructor Platform](https://constructor.app/platform/public/project/pes_fingerprint)!
 
