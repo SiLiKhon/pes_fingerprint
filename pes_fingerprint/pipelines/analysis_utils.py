@@ -1,12 +1,14 @@
 from typing import Any, Dict, List, Literal, Optional, Tuple
 from itertools import chain
 import inspect
+from collections import OrderedDict
 
 import numpy as np
 from ase import Atoms
 
 from .mpe import calculate_mpe
 from .levels import calculate_levels
+from .preprocessing import get_preprocessor
 
 
 def shift_map(m: np.ndarray, shift: Tuple[int, int, int], last_pix_overlap: bool = True) -> np.ndarray:
@@ -211,6 +213,7 @@ def process_structure(
     fvl_smearing: List[float] = [-0.04, -0.02, 0.0, 0.02, 0.04],
     mpe_params: Optional[Dict[str, Any]] = None,
     levels_params: Optional[Dict[str, Any]] = None,
+    preprocessors: Optional[OrderedDict[str, Dict]] = None,
 ) -> Dict[str, float]:
     """
     Calculate features for a structure.
@@ -235,11 +238,19 @@ def process_structure(
     levels_params: Optional[Dict[str, Any]]
         parameters passed to the `calculate_levels` call
 
+    preprocessors: Optional[OrderedDict[str, Dict]]
+        ordered dict of pre-processing algorithms to apply to `atoms` (keys are algorithm names,
+        values are algorithm factory kwargs)
+
     Returns
     -------
     Dict[str, float]
         dictionary of feature values
     """
+    if preprocessors is not None:
+        for alg_name, alg_kwargs in preprocessors.items():
+            print(f"Applying \"{alg_name}\" preprocessor")
+            atoms = get_preprocessor(alg_name, **alg_kwargs)(atoms)
     if mpe_params is None:
         mpe_params = {}
     if levels_params is None:
