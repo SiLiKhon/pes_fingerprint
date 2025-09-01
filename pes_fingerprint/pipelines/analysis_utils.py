@@ -227,7 +227,8 @@ def process_structure(
         "free volume" threshold levels to calculate these features at
 
     mobile_species: str
-        type of atom under consideration
+        type of atom under consideration; an expression of the form `"tag:NUMBER"` can be used with `NUMBER`
+        being some integer to set tagged atoms as mobile
 
     fvl_smearing: List[float]
         each "free volume" is calculated as average over smeared levels: `[level + delta for delta in fvl_smearing]`
@@ -266,7 +267,16 @@ def process_structure(
     assert early_stop_level is not inspect.Parameter.empty
     assert max(free_volume_levels) <= early_stop_level
 
-    (mobile_ids,) = np.where([el == mobile_species for el in atoms.symbols])
+    _tags = atoms.get_tags()
+    if mobile_species.startswith("tag:"):
+        target_tag = int(mobile_species[4:])
+        assert target_tag != 0, "Target tag can't be 0"
+        assert target_tag in _tags, f"Atoms missing target tag ({target_tag})"
+        assert set(_tags) == {0, target_tag}, f"Found unexpected tags: {set(_tags)} (expected only 0 and {target_tag})"
+        (mobile_ids,) = np.where(_tags == target_tag)
+    else:
+        assert set(_tags) == {0}, f"Found unexpected tags: {set(_tags)} (expected only 0)"
+        (mobile_ids,) = np.where([el == mobile_species for el in atoms.symbols])
     mobile_ids = [int(i) for i in mobile_ids]
     assert len(mobile_ids) > 0
     _filter = lambda x: {
