@@ -163,6 +163,34 @@ Each of the 3 jobs is expected to take ~15GB of GPU memory, see the `target_gpu_
 
 
 
+## Upd Sept 2025: adding preprocessors
+
+Two preprocessors added allowing for faster variations of the analysis pipeline (their predictive power is yet to be assessed). The default pipeline iteratively treats every Li atom as mobile, and then aggregates the results. The two new preprocessors allow for PES scan with a single mobile Li atom: either 1) by removing all other Li from the structure, or 2) by adding a single interstitial Li atom to a given structure.
+
+Example command modifications to run:
+
+```bash
+# removing other Li atoms
+CUDA_VISIBLE_DEVICES='0' python3  \
+  -m pes_fingerprint_scripts.run_ase_atoms \
+  mp-structures-0-2999.traj \
+  --num-jobs 3 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_sevennet"}}, "preprocessors": {"single_mobile_ion": {}}}' \
+  --export-to-file=mp-structures-0-2999-predictions-7net-single-mobile.csv
+```
+
+or
+
+```bash
+# adding one interstitial mobile Li ion
+CUDA_VISIBLE_DEVICES='0' python3  \
+  -m pes_fingerprint_scripts.run_ase_atoms \
+  mp-structures-0-2999.traj \
+  --num-jobs 3 \
+  --kwargs-json='{"mpe_params": {"calculator_params": {"key": "batched_sevennet"}}, "preprocessors": {"single_mobile_ion_interstitial": {}}, "mobile_species": "tag:-1"}' \
+  --export-to-file=mp-structures-0-2999-predictions-7net-single-mobile-interstitial.csv
+```
+
 ## Citations
 
 A. Maevskiy, A. Carvalho, E. Sataev, V. Turchyna, K. Noori, A. Rodin, A. H. Castro Neto and A. Ustyuzhanin,
