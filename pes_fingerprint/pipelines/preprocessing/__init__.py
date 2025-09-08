@@ -33,8 +33,8 @@ def single_mobile_ion_factory(mobile_species: str = "Li") -> PreprocessorType:
     return _prep
 
 
-@factory("single_mobile_ion_intersticial")
-def single_mobile_ion_intersticial_factory(mobile_tag: int = -1, mobile_species: str = "Li") -> PreprocessorType:
+@factory("single_mobile_ion_interstitial")
+def single_mobile_ion_interstitial_factory(mobile_tag: int = -1, mobile_species: str = "Li") -> PreprocessorType:
     def _prep(ats: Atoms) -> Atoms:
         ats = ats.copy()
         # quick and dirty location picking logic (ignoring neighbor images but limited to inner subcell)
