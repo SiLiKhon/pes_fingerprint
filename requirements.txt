@@ -4,3 +4,4 @@ joblib
 ase
 scikit-image
 plotly
+tabulate

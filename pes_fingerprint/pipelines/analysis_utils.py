@@ -117,7 +117,10 @@ def make_mask(cell: np.ndarray, wrapped_shape: Tuple[int, int, int], thr: float)
     assert ijk.shape == wrapped_shape + (3,)
 
     xyz = ijk @ step_vecs
-    return np.linalg.norm(xyz, axis=-1) >= thr
+
+    shifts = np.stack(np.meshgrid(*[[-1, 0, 1]] * 3, indexing="ij"), axis=-1).reshape(-1, 3) @ (cell * 2)
+
+    return (np.linalg.norm(xyz[..., None, :] + shifts, axis=-1) >= thr).all(axis=-1)
 
 def wrap_mask_2x2x2(mask: np.ndarray) -> np.ndarray:
     shifts = np.fromfunction(

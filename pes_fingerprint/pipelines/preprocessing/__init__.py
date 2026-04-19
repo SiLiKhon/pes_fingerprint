@@ -38,7 +38,7 @@ def single_mobile_ion_interstitial_factory(mobile_tag: int = -1, mobile_species:
     def _prep(ats: Atoms) -> Atoms:
         ats = ats.copy()
         # quick and dirty location picking logic (ignoring neighbor images but limited to inner subcell)
-        candidate_positions = np.random.default_rng().uniform(0.25, 0.75, size=(10, 3)) @ ats.cell.array
+        candidate_positions = np.random.default_rng(0).uniform(0.25, 0.75, size=(10, 3)) @ ats.cell.array
         position = candidate_positions[
             np.linalg.norm(
                 candidate_positions[:, None, :] - ats.get_positions(wrap=True)[None, :, :],
